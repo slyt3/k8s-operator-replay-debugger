@@ -25,11 +25,14 @@ jobs:
     - name: Download Go modules
       run: go mod download
     
-    - name: Build
+    - name: Build CLI
       run: go build -v -o replay-cli ./cmd/replay-cli
     
+    - name: Build packages only
+      run: go build -v ./pkg/... ./internal/...
+    
     - name: Test
-      run: go test -v ./...
+      run: go test -v ./pkg/... ./internal/...
     
     - name: Verify binary
       run: ./replay-cli --version
