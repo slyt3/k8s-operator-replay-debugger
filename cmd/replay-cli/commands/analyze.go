@@ -1,0 +1,323 @@
+package commands
+
+import (
+	"fmt"
+
+	"github.com/operator-replay-debugger/internal/assert"
+	"github.com/operator-replay-debugger/pkg/analysis"
+	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/spf13/cobra"
+)
+
+const (
+	defaultLoopWindow = 10
+	defaultSlowThreshold = 1000
+)
+
+// AnalyzeConfig holds analyze command configuration.
+type AnalyzeConfig struct {
+	DatabasePath     string
+	SessionID        string
+	DetectLoops      bool
+	FindSlow         bool
+	AnalyzeErrors    bool
+	LoopWindow       int
+	SlowThreshold    int64
+}
+
+// NewAnalyzeCommand creates the analyze subcommand.
+func NewAnalyzeCommand() *cobra.Command {
+	cfg := &AnalyzeConfig{}
+
+	cmd := &cobra.Command{
+		Use:   "analyze [session-id]",
+		Short: "Analyze recorded operations for issues",
+		Long: `Analyze recorded operations to detect:
+- Infinite loops and repeated patterns
+- Slow operations exceeding threshold
+- Error patterns and frequencies
+- Resource access patterns`,
+		Args: cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runAnalyze(cfg, args)
+		},
+	}
+
+	cmd.Flags().StringVarP(
+		&cfg.DatabasePath,
+		"database",
+		"d",
+		defaultDatabasePath,
+		"Path to SQLite database",
+	)
+
+	cmd.Flags().BoolVarP(
+		&cfg.DetectLoops,
+		"loops",
+		"l",
+		true,
+		"Detect loop patterns",
+	)
+
+	cmd.Flags().BoolVarP(
+		&cfg.FindSlow,
+		"slow",
+		"s",
+		true,
+		"Find slow operations",
+	)
+
+	cmd.Flags().BoolVarP(
+		&cfg.AnalyzeErrors,
+		"errors",
+		"e",
+		true,
+		"Analyze error patterns",
+	)
+
+	cmd.Flags().IntVarP(
+		&cfg.LoopWindow,
+		"window",
+		"w",
+		defaultLoopWindow,
+		"Loop detection window size",
+	)
+
+	cmd.Flags().Int64VarP(
+		&cfg.SlowThreshold,
+		"threshold",
+		"t",
+		defaultSlowThreshold,
+		"Slow operation threshold in ms",
+	)
+
+	return cmd
+}
+
+// runAnalyze executes the analyze command.
+func runAnalyze(cfg *AnalyzeConfig, args []string) error {
+	err := assert.AssertNotNil(cfg, "config")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertInRange(len(args), 1, 1, "args count")
+	if err != nil {
+		return err
+	}
+
+	cfg.SessionID = args[0]
+
+	err = validateAnalyzeConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("invalid configuration: %w", err)
+	}
+
+	db, err := storage.NewDatabase(cfg.DatabasePath, 1000000)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer func() {
+		closeErr := db.Close()
+		if closeErr != nil {
+			fmt.Printf("Warning: failed to close database: %v\n", closeErr)
+		}
+	}()
+
+	ops, err := db.QueryOperations(cfg.SessionID)
+	if err != nil {
+		return fmt.Errorf("failed to load operations: %w", err)
+	}
+
+	if len(ops) == 0 {
+		return fmt.Errorf("no operations found for session: %s", cfg.SessionID)
+	}
+
+	fmt.Printf("Analyzing %d operations for session: %s\n\n", 
+		len(ops), cfg.SessionID)
+
+	if cfg.DetectLoops {
+		err = analyzeLoops(ops, cfg.LoopWindow)
+		if err != nil {
+			return err
+		}
+	}
+
+	if cfg.FindSlow {
+		err = analyzeSlowOps(ops, cfg.SlowThreshold)
+		if err != nil {
+			return err
+		}
+	}
+
+	if cfg.AnalyzeErrors {
+		err = analyzeErrorPatterns(ops)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateAnalyzeConfig validates configuration.
+func validateAnalyzeConfig(cfg *AnalyzeConfig) error {
+	err := assert.AssertStringNotEmpty(cfg.DatabasePath, "database path")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertStringNotEmpty(cfg.SessionID, "session ID")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertInRange(
+		cfg.LoopWindow,
+		2,
+		100,
+		"loop window",
+	)
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertInRange(
+		int(cfg.SlowThreshold),
+		1,
+		1000000,
+		"slow threshold",
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// analyzeLoops detects loop patterns.
+func analyzeLoops(ops []storage.Operation, window int) error {
+	fmt.Println("=== Loop Detection ===")
+
+	patterns, err := analysis.DetectLoops(ops, window)
+	if err != nil {
+		return fmt.Errorf("loop detection failed: %w", err)
+	}
+
+	if len(patterns) == 0 {
+		fmt.Println("No loop patterns detected")
+		fmt.Println()
+		return nil
+	}
+
+	fmt.Printf("Found %d potential loops:\n", len(patterns))
+
+	maxDisplay := 10
+	count := 0
+
+	for count < len(patterns) && count < maxDisplay {
+		p := &patterns[count]
+		fmt.Printf("  [%d-%d] %s (repeated %d times)\n",
+			p.StartIndex,
+			p.EndIndex,
+			p.Description,
+			p.RepeatCount,
+		)
+		count = count + 1
+	}
+
+	if len(patterns) > maxDisplay {
+		fmt.Printf("  ... and %d more\n", len(patterns)-maxDisplay)
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// analyzeSlowOps finds slow operations.
+func analyzeSlowOps(ops []storage.Operation, threshold int64) error {
+	fmt.Println("=== Slow Operations ===")
+
+	slowOps, err := analysis.FindSlowOperations(ops, threshold)
+	if err != nil {
+		return fmt.Errorf("slow operation analysis failed: %w", err)
+	}
+
+	if len(slowOps) == 0 {
+		fmt.Printf("No operations slower than %dms\n", threshold)
+		fmt.Println()
+		return nil
+	}
+
+	fmt.Printf("Found %d slow operations (>%dms):\n", len(slowOps), threshold)
+
+	maxDisplay := 10
+	count := 0
+
+	for count < len(slowOps) && count < maxDisplay {
+		slow := &slowOps[count]
+		fmt.Printf("  [%d] %s %s/%s/%s: %dms\n",
+			slow.Index,
+			slow.Operation.OperationType,
+			slow.Operation.ResourceKind,
+			slow.Operation.Namespace,
+			slow.Operation.Name,
+			slow.DurationMs,
+		)
+		count = count + 1
+	}
+
+	if len(slowOps) > maxDisplay {
+		fmt.Printf("  ... and %d more\n", len(slowOps)-maxDisplay)
+	}
+
+	fmt.Println()
+	return nil
+}
+
+// analyzeErrorPatterns analyzes error patterns.
+func analyzeErrorPatterns(ops []storage.Operation) error {
+	fmt.Println("=== Error Analysis ===")
+
+	summary, err := analysis.AnalyzeErrors(ops)
+	if err != nil {
+		return fmt.Errorf("error analysis failed: %w", err)
+	}
+
+	if summary.TotalErrors == 0 {
+		fmt.Println("No errors found")
+		fmt.Println()
+		return nil
+	}
+
+	fmt.Printf("Total Errors: %d\n", summary.TotalErrors)
+	fmt.Println("\nErrors by Type:")
+
+	maxTypes := 20
+	count := 0
+
+	for errType, errCount := range summary.ErrorsByType {
+		if count >= maxTypes {
+			break
+		}
+		fmt.Printf("  %s: %d\n", errType, errCount)
+		count = count + 1
+	}
+
+	if summary.FirstError != nil {
+		fmt.Printf("\nFirst Error (seq %d): %s\n",
+			summary.FirstError.SequenceNumber,
+			summary.FirstError.Error,
+		)
+	}
+
+	if summary.LastError != nil {
+		fmt.Printf("Last Error (seq %d): %s\n",
+			summary.LastError.SequenceNumber,
+			summary.LastError.Error,
+		)
+	}
+
+	fmt.Println()
+	return nil
+}
