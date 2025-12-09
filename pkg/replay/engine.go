@@ -1,7 +1,6 @@
 package replay
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/operator-replay-debugger/internal/assert"
@@ -18,12 +17,12 @@ const (
 // ReplayEngine manages playback of recorded operations.
 // Rule 6: Minimal scope for all state.
 type ReplayEngine struct {
-	operations    []storage.Operation
-	currentIndex  int
-	maxIndex      int
-	sessionID     string
-	stateCache    map[string]runtime.Object
-	maxCacheSize  int
+	operations   []storage.Operation
+	currentIndex int
+	maxIndex     int
+	sessionID    string
+	stateCache   map[string]runtime.Object
+	maxCacheSize int
 }
 
 // Config holds replay configuration.
@@ -204,15 +203,13 @@ func (r *ReplayEngine) updateCache(op *storage.Operation) error {
 		return fmt.Errorf("cache size limit reached: %d", r.maxCacheSize)
 	}
 
-	var obj runtime.Object
-	err = json.Unmarshal([]byte(op.ResourceData), &obj)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal resource: %w", err)
-	}
+	// Note: In real integration, this would unmarshal to proper K8s types
+	// For MVP, we just track that the resource was accessed
+	r.stateCache[key] = nil
 
-	r.stateCache[key] = obj
 	return nil
 }
+
 
 // GetCachedObject retrieves object from state cache.
 func (r *ReplayEngine) GetCachedObject(
@@ -241,15 +238,15 @@ func (r *ReplayEngine) GetCachedObject(
 
 // OperationStats holds statistics about operations.
 type OperationStats struct {
-	TotalOps       int
-	GetOps         int
-	UpdateOps      int
-	CreateOps      int
-	DeleteOps      int
-	ErrorCount     int
-	AvgDurationMs  int64
-	MaxDurationMs  int64
-	MinDurationMs  int64
+	TotalOps      int
+	GetOps        int
+	UpdateOps     int
+	CreateOps     int
+	DeleteOps     int
+	ErrorCount    int
+	AvgDurationMs int64
+	MaxDurationMs int64
+	MinDurationMs int64
 }
 
 // CalculateStats computes statistics for recorded operations.

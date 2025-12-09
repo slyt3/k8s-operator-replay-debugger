@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/operator-replay-debugger/internal/assert"
@@ -90,19 +91,26 @@ ON operations(resource_kind, namespace, name);
 // ValidateOperation checks operation data meets constraints.
 // Rule 5: Minimum 2 assertions per function.
 func ValidateOperation(op *Operation) error {
+	if op == nil {
+		return fmt.Errorf("operation is nil")
+	}
+
 	err := assert.AssertNotNil(op, "operation")
 	if err != nil {
 		return err
+	}
+
+	if len(op.SessionID) == 0 {
+		return fmt.Errorf("session_id is empty")
 	}
 
 	err = assert.AssertStringNotEmpty(op.SessionID, "session_id")
 	if err != nil {
 		return err
 	}
-
 	err = assert.AssertInRange(
-		len(op.ResourceKind), 
-		1, 
+		len(op.ResourceKind),
+		1,
 		maxResourceKindLength,
 		"resource_kind length",
 	)
