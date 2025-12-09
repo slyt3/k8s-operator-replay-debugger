@@ -1,7 +1,7 @@
 # Kubernetes Operator Replay Debugger
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Safety Critical](https://img.shields.io/badge/Safety-JPL%20Power%20of%2010-green)](SAFETY_COMPLIANCE.md)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![CI](https://github.com/slyt3/k8s-operator-replay-debugger/actions/workflows/ci.yml/badge.svg)](https://github.com/slyt3/k8s-operator-replay-debugger/actions/workflows/ci.yml)
