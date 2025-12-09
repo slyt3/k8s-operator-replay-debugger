@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libsqlite3-dev
+    
+    - name: Download Go modules
+      run: go mod download
+    
+    - name: Build
+      run: go build -v -o replay-cli ./cmd/replay-cli
+    
+    - name: Test
+      run: go test -v ./...
+    
+    - name: Verify binary
+      run: ./replay-cli --version
