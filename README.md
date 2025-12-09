@@ -1,5 +1,14 @@
 # Kubernetes Operator Replay Debugger
 
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Safety Critical](https://img.shields.io/badge/Safety-JPL%20Power%20of%2010-green)](SAFETY_COMPLIANCE.md)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+
+> Record, replay, and debug Kubernetes operator reconciliation loops with time-travel debugging
+
+# Kubernetes Operator Replay Debugger
+
 A production-grade tool for recording, replaying, and analyzing Kubernetes operator reconciliation loops. Helps debug operator behavior by capturing all API interactions and enabling time-travel debugging.
 
 ## Features
