@@ -12,8 +12,10 @@ help:
 	@echo "  clean       - Remove build artifacts"
 	@echo "  install     - Install binary to GOPATH/bin"
 	@echo "  lint        - Run static analysis"
+	@echo "  setup       - Complete setup (deps + build + test + samples)"
 	@echo "  run-sample  - Run sample replay"
-	@echo "  setup       - Run full setup script"
+	@echo "  deps        - Download and update dependencies"
+	@echo "  fmt         - Format code"
 
 build:
 	@echo "Building $(BINARY_NAME)..."
@@ -22,17 +24,17 @@ build:
 
 test:
 	@echo "Running tests..."
-	go test -v ./...
+	go test -v ./pkg/... ./internal/... ./cmd/...
 
 test-coverage:
 	@echo "Running tests with coverage..."
-	go test -coverprofile=coverage.out ./...
+	go test -coverprofile=coverage.out ./pkg/... ./internal/... ./cmd/...
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
 test-race:
 	@echo "Running tests with race detector..."
-	go test -race ./...
+	go test -race ./pkg/... ./internal/... ./cmd/...
 
 clean:
 	@echo "Cleaning build artifacts..."
@@ -70,9 +72,18 @@ deps:
 	go mod tidy
 	@echo "Dependencies updated"
 
-setup:
+setup: deps
 	@echo "Running full setup..."
-	./setup.sh
+	@echo "Building project..."
+	@$(MAKE) build
+	@echo "Running tests..."
+	@$(MAKE) test
+	@echo "Creating sample database..."
+	@go run -v examples/create_sample.go
+	@echo ""
+	@echo "Setup complete! Try:"
+	@echo "  make run-sample    # Run sample replay"
+	@echo "  ./$(BINARY_NAME) sessions -d $(SAMPLE_DB)  # List sessions"
 
 run-sample: build
 	@echo "Creating sample database..."
