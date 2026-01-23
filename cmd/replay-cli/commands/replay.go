@@ -6,6 +6,7 @@ import (
 	"github.com/operator-replay-debugger/internal/assert"
 	"github.com/operator-replay-debugger/pkg/replay"
 	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -19,6 +20,7 @@ type ReplayConfig struct {
 	DatabasePath string
 	SessionID    string
 	Interactive  bool
+	Quiet        bool
 }
 
 // NewReplayCommand creates the replay subcommand.
@@ -50,6 +52,14 @@ Allows stepping forward/backward through the operation sequence.`,
 		"i",
 		false,
 		"Enable interactive stepping mode",
+	)
+
+	cmd.Flags().BoolVarP(
+		&cfg.Quiet,
+		"quiet",
+		"q",
+		false,
+		"Disable progress bar during replay",
 	)
 
 	return cmd
@@ -108,7 +118,7 @@ func runReplay(cfg *ReplayConfig, args []string) error {
 		return runInteractiveReplay(engine)
 	}
 
-	return runAutomaticReplay(engine)
+	return runAutomaticReplay(engine, cfg.Quiet)
 }
 
 // validateReplayConfig validates configuration.
@@ -296,7 +306,7 @@ func displayStats(stats *replay.OperationStats) {
 
 // runAutomaticReplay runs through all operations automatically.
 // Rule 2: Bounded by operation count.
-func runAutomaticReplay(engine *replay.ReplayEngine) error {
+func runAutomaticReplay(engine *replay.ReplayEngine, quiet bool) error {
 	err := assert.AssertNotNil(engine, "engine")
 	if err != nil {
 		return err
@@ -309,6 +319,19 @@ func runAutomaticReplay(engine *replay.ReplayEngine) error {
 
 	fmt.Printf("Replaying %d operations...\n", total)
 
+	// Rule 6: Declare in smallest scope
+	var bar *progressbar.ProgressBar
+	if !quiet {
+		bar = progressbar.NewOptions(total,
+			progressbar.OptionSetDescription("Progress"),
+			progressbar.OptionSetWidth(20),
+			progressbar.OptionShowCount(),
+			progressbar.OptionShowElapsedTimeOnFinish(),
+			progressbar.OptionSetElapsedTime(true),
+		)
+	}
+
+	// Rule 1,2: Simple loop with fixed bound
 	count := 0
 	for count < total {
 		op, err := engine.StepForward()
@@ -316,18 +339,36 @@ func runAutomaticReplay(engine *replay.ReplayEngine) error {
 			return fmt.Errorf("step failed at %d: %w", count, err)
 		}
 
-		if count%100 == 0 {
-			fmt.Printf("Progress: %d/%d\n", count, total)
+		// Update progress bar if not quiet
+		if !quiet && bar != nil {
+			// Rule 7: Check return value
+			updateErr := bar.Add(1)
+			if updateErr != nil {
+				fmt.Printf("Warning: progress update failed: %v\n", updateErr)
+			}
 		}
 
+		// Show errors and periodic updates for quiet mode
 		if len(op.Error) > 0 {
 			displayOperation(op)
+		} else if quiet && count%100 == 0 {
+			fmt.Printf("Progress: %d/%d\n", count+1, total)
 		}
 
 		count = count + 1
 	}
 
-	fmt.Println("Replay complete")
+	// Rule 5: Assert completion
+	if count != total {
+		return fmt.Errorf("replay incomplete: processed %d of %d", count, total)
+	}
+
+	if !quiet && bar != nil {
+		// Rule 7: Explicitly ignore return value
+		_ = bar.Finish()
+	}
+
+	fmt.Println("\nReplay complete")
 
 	stats, err := engine.CalculateStats()
 	if err != nil {
