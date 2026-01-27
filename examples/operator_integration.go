@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -70,7 +72,7 @@ func main() {
 		return
 	}
 
-	fmt.Printf("\nRecording complete: %d operations\n", 
+	fmt.Printf("\nRecording complete: %d operations\n",
 		recordingClient.GetSequenceNumber())
 	fmt.Printf("Database: operator_recordings.db\n")
 	fmt.Printf("Session: %s\n", sessionID)
@@ -86,7 +88,7 @@ func runReconciliationLoop(client *recorder.RecordingClient) error {
 	for loopCount < maxReconcileLoops {
 		err := reconcile(ctx, client)
 		if err != nil {
-			return fmt.Errorf("reconcile failed at iteration %d: %w", 
+			return fmt.Errorf("reconcile failed at iteration %d: %w",
 				loopCount, err)
 		}
 
