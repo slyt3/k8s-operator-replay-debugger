@@ -8,10 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	maxCommandDepth = 5
-)
-
 var (
 	version = "1.0.0"
 )

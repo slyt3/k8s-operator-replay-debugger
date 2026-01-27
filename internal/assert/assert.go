@@ -5,10 +5,6 @@ import (
 	"runtime"
 )
 
-const (
-	maxStackDepth = 10
-)
-
 // Assert checks condition and returns error with context if false.
 // Follows Rule 5: side-effect free boolean test with error recovery.
 func Assert(condition bool, message string) error {
