@@ -108,11 +108,11 @@ func TestValidateOperation(t *testing.T) {
 		{
 			name: "valid operation",
 			op: &Operation{
-				SessionID:     "session-1",
-				ResourceKind:  "Pod",
-				Namespace:     "default",
-				Name:          "pod-1",
-				ResourceData:  "{}",
+				SessionID:    "session-1",
+				ResourceKind: "Pod",
+				Namespace:    "default",
+				Name:         "pod-1",
+				ResourceData: "{}",
 			},
 			wantErr: false,
 		},

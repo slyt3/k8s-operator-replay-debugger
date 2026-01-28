@@ -41,9 +41,9 @@ type JSONErrorSummary struct {
 type JSONAnalysisReport struct {
 	SessionID       string              `json:"session_id"`
 	TotalOperations int                 `json:"total_operations"`
-	SlowOperations  []JSONSlowOperation `json:"slow_operations,omitempty"`
-	LoopsDetected   []JSONLoopDetection `json:"loops_detected,omitempty"`
-	Errors          *JSONErrorSummary   `json:"errors,omitempty"`
+	SlowOperations  []JSONSlowOperation `json:"slow_operations"`
+	LoopsDetected   []JSONLoopDetection `json:"loops_detected"`
+	Errors          JSONErrorSummary    `json:"errors"`
 }
 
 // AnalyzeConfig holds analyze command configuration.
@@ -185,6 +185,9 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	report := JSONAnalysisReport{
 		SessionID:       cfg.SessionID,
 		TotalOperations: len(ops),
+		SlowOperations:  make([]JSONSlowOperation, 0),
+		LoopsDetected:   make([]JSONLoopDetection, 0),
+		Errors:          JSONErrorSummary{ByType: make(map[string]int)},
 	}
 
 	if cfg.FindSlow {
@@ -193,8 +196,14 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("slow operation analysis failed: %w", err)
 		}
 
-		report.SlowOperations = make([]JSONSlowOperation, 0, len(slowOps))
-		for _, slow := range slowOps {
+		maxDisplay := 10
+		displayCount := len(slowOps)
+		if displayCount > maxDisplay {
+			displayCount = maxDisplay
+		}
+
+		for i := 0; i < displayCount; i++ {
+			slow := &slowOps[i]
 			resource := fmt.Sprintf("%s/%s/%s",
 				slow.Operation.ResourceKind,
 				slow.Operation.Namespace,

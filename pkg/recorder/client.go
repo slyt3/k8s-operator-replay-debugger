@@ -21,12 +21,12 @@ const (
 // RecordingClient wraps a Kubernetes client to record all operations.
 // Rule 6: Minimal scope, all fields private.
 type RecordingClient struct {
-	client        kubernetes.Interface
-	db            *storage.Database
-	sessionID     string
-	sequenceNum   int64
-	enabled       bool
-	maxSequence   int64
+	client      kubernetes.Interface
+	db          *storage.Database
+	sessionID   string
+	sequenceNum int64
+	enabled     bool
+	maxSequence int64
 }
 
 // Config holds recorder configuration.
@@ -219,7 +219,7 @@ func (r *RecordingClient) RecordGet(
 		duration,
 	)
 	if recordErr != nil {
-		return obj, fmt.Errorf("record failed: %w (original error: %v)", 
+		return obj, fmt.Errorf("record failed: %w (original error: %v)",
 			recordErr, getErr)
 	}
 

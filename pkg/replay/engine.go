@@ -210,7 +210,6 @@ func (r *ReplayEngine) updateCache(op *storage.Operation) error {
 	return nil
 }
 
-
 // GetCachedObject retrieves object from state cache.
 func (r *ReplayEngine) GetCachedObject(
 	kind string,
