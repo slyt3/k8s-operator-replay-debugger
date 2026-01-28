@@ -154,6 +154,9 @@ func main() {
 ./replay-cli analyze prod-deployment-001 -d recordings.db \
     --threshold 2000 \
     --window 15
+
+# JSON output for automation and CI/CD pipelines
+./replay-cli analyze prod-deployment-001 -d recordings.db --format json > report.json
 ```
 
 ## Database Schema
@@ -295,6 +298,49 @@ Understand error frequency and types:
 
 ```bash
 ./replay-cli analyze session-001 --errors
+```
+
+### JSON Export for Automation
+
+Generate machine-readable analysis reports for CI/CD pipelines:
+
+```bash
+# Export all analysis as JSON
+./replay-cli analyze session-001 --format json > analysis.json
+
+# Only export slow operations analysis
+./replay-cli analyze session-001 --slow --no-loops --no-errors --format json
+```
+
+Example JSON output:
+```json
+{
+  "session_id": "session-001",
+  "total_operations": 100,
+  "slow_operations": [
+    {
+      "index": 5,
+      "type": "UPDATE",
+      "resource": "Deployment/production/app",
+      "duration_ms": 2000
+    }
+  ],
+  "loops_detected": [
+    {
+      "start_index": 10,
+      "end_index": 30,
+      "repeat_count": 3,
+      "description": "Repeated Pod operations"
+    }
+  ],
+  "errors": {
+    "total": 3,
+    "by_type": {
+      "GET": 2,
+      "UPDATE": 1
+    }
+  }
+}
 ```
 
 ## Limitations

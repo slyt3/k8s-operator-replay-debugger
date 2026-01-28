@@ -65,6 +65,9 @@ That's it. The setup script:
 
 # Analyze for problems
 ./replay-cli analyze sample-session-002 -d sample_recordings.db
+
+# Generate JSON report for automation
+./replay-cli analyze sample-session-002 -d sample_recordings.db --format json
 ```
 
 ## What Just Happened?
