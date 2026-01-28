@@ -128,7 +128,7 @@ func NewAnalyzeCommand() *cobra.Command {
 		&cfg.Format,
 		"format",
 		"text",
-		"Output format: text or json",
+		"Output format: text (limited output for readability) or json (includes all results)",
 	)
 
 	return cmd
@@ -196,7 +196,14 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("slow operation analysis failed: %w", err)
 		}
 
-		for _, slow := range slowOps {
+		maxDisplay := 10
+		displayCount := len(slowOps)
+		if displayCount > maxDisplay {
+			displayCount = maxDisplay
+		}
+
+		for i := 0; i < displayCount; i++ {
+			slow := &slowOps[i]
 			resource := fmt.Sprintf("%s/%s/%s",
 				slow.Operation.ResourceKind,
 				slow.Operation.Namespace,
@@ -216,6 +223,7 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("loop detection failed: %w", err)
 		}
 
+		report.LoopsDetected = make([]JSONLoopDetection, 0, len(patterns))
 		for _, pattern := range patterns {
 			report.LoopsDetected = append(report.LoopsDetected, JSONLoopDetection{
 				StartIndex:  pattern.StartIndex,
@@ -232,8 +240,10 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("error analysis failed: %w", err)
 		}
 
-		report.Errors.Total = summary.TotalErrors
-		report.Errors.ByType = summary.ErrorsByType
+		report.Errors = &JSONErrorSummary{
+			Total:  summary.TotalErrors,
+			ByType: summary.ErrorsByType,
+		}
 	}
 
 	jsonBytes, err := json.MarshalIndent(report, "", "  ")
