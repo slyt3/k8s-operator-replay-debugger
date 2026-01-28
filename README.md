@@ -17,8 +17,9 @@ A production-grade tool for recording, replaying, and analyzing Kubernetes opera
 - **Recording Mode**: Transparently record all Kubernetes API operations
 - **Replay Mode**: Step through recorded operations forward/backward
 - **Analysis Mode**: Detect loops, slow operations, and error patterns
+- **Flexible Storage**: SQLite (embedded) or MongoDB (scalable) backends
 - **Safety-Critical**: Follows JPL Power of 10 coding rules
-- **Zero Dependencies**: Self-contained SQLite storage
+- **JSON Export**: Machine-readable output for CI/CD integration
 - **Time Travel**: Navigate through operation history
 
 ## Architecture
@@ -28,7 +29,7 @@ A production-grade tool for recording, replaying, and analyzing Kubernetes opera
 │ 1. Recording Mode                   │
 │ - Intercept all K8s API calls       │
 │ - Record: events, state, timing     │
-│ - Store in SQLite database          │
+│ - Store in SQLite or MongoDB        │
 └─────────────────────────────────────┘
                  ↓
 ┌─────────────────────────────────────┐
@@ -45,6 +46,7 @@ A production-grade tool for recording, replaying, and analyzing Kubernetes opera
 │ - Identify infinite loops           │
 │ - Find race conditions              │
 │ - Performance bottlenecks           │
+│ - JSON output for automation        │
 └─────────────────────────────────────┘
 ```
 
@@ -143,6 +145,7 @@ func main() {
 
 ### 3. Analyze Operations
 
+**SQLite Storage (default):**
 ```bash
 # Detect loops, slow operations, and errors
 ./replay-cli analyze prod-deployment-001 -d recordings.db
@@ -150,13 +153,25 @@ func main() {
 # Only detect loops
 ./replay-cli analyze prod-deployment-001 -d recordings.db --loops --no-slow --no-errors
 
-# Custom thresholds
-./replay-cli analyze prod-deployment-001 -d recordings.db \
-    --threshold 2000 \
-    --window 15
-
 # JSON output for automation and CI/CD pipelines
 ./replay-cli analyze prod-deployment-001 -d recordings.db --format json > report.json
+```
+
+**MongoDB Storage:**
+```bash
+# Analyze with MongoDB backend
+./replay-cli analyze prod-deployment-001 \
+    --storage mongodb \
+    --mongo-uri "mongodb://localhost:27017" \
+    --mongo-db "operator_replay"
+
+# MongoDB with custom settings
+./replay-cli analyze prod-deployment-001 \
+    --storage mongodb \
+    --mongo-uri "mongodb://user:pass@cluster.mongodb.net" \
+    --mongo-db "production_debugging" \
+    --threshold 2000 \
+    --format json
 ```
 
 ## Database Schema

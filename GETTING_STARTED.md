@@ -165,6 +165,8 @@ make install        # Install to GOPATH/bin
 ```
 
 ### Using the CLI
+
+**Basic Commands:**
 ```bash
 # List sessions
 ./replay-cli sessions -d <database>
@@ -175,13 +177,28 @@ make install        # Install to GOPATH/bin
 # Interactive replay
 ./replay-cli replay <session-id> -d <database> -i
 
-# Analyze session
-./replay-cli analyze <session-id> -d <database>
-
 # Get help
 ./replay-cli --help
 ./replay-cli replay --help
 ./replay-cli analyze --help
+```
+
+**Analyze with Different Storage Backends:**
+```bash
+# SQLite (default) - great for development
+./replay-cli analyze <session-id> -d <database>
+
+# MongoDB - great for production/teams
+./replay-cli analyze <session-id> \
+    --storage mongodb \
+    --mongo-uri "mongodb://localhost:27017" \
+    --mongo-db "operator_replay"
+
+# MongoDB with authentication
+./replay-cli analyze <session-id> \
+    --storage mongodb \
+    --mongo-uri "mongodb://user:pass@cluster.mongodb.net" \
+    --mongo-db "prod_debugging"
 ```
 
 ### Creating Test Data

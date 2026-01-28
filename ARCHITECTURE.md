@@ -9,7 +9,7 @@ Helps debug operator behavior by capturing all API interactions and replaying th
 ### Phase 1: Recording Mode
 - Intercepts all Kubernetes API calls (GET, UPDATE, PATCH, DELETE, CREATE)
 - Records events, resource states, and timing information
-- Stores in SQLite database for persistence
+- Stores in SQLite database (embedded) or MongoDB (scalable)
 - Transparent wrapper around k8s client library
 
 ### Phase 2: Replay Mode
@@ -28,9 +28,41 @@ Helps debug operator behavior by capturing all API interactions and replaying th
 
 ## Technology Stack
 - Language: Go (primary k8s operator language)
-- Storage: SQLite (embedded, no external dependencies)
+- Storage: SQLite (embedded, zero dependencies) or MongoDB (scalable, distributed)
 - K8s Client: client-go library
 - Testing: Go standard testing + testify
+- CLI: Cobra framework for command-line interface
+
+## Storage Architecture
+
+### Interface Abstraction
+- `OperationStore` interface enables pluggable storage backends
+- Unified API: `InsertOperation`, `QueryOperations`, `ListSessions`
+- Factory pattern for backend selection based on configuration
+
+### SQLite Backend
+- **Use Case**: Development, testing, single-node deployments
+- **Benefits**: Zero dependencies, embedded, file-based
+- **Performance**: Excellent for moderate workloads (< 1M operations)
+- **Deployment**: Simple binary distribution
+
+### MongoDB Backend  
+- **Use Case**: Production, multi-node, large-scale deployments
+- **Benefits**: Horizontal scaling, replication, clustering
+- **Performance**: Optimized for high-throughput workloads
+- **Indexing**: Automatic indexing on session_id and sequence_number
+- **Features**: BSON document storage, aggregation pipelines
+
+### Backend Selection
+```bash
+# SQLite (default)
+./replay-cli analyze session-001 --storage sqlite -d recordings.db
+
+# MongoDB
+./replay-cli analyze session-001 --storage mongodb \
+    --mongo-uri "mongodb://localhost:27017" \
+    --mongo-db "operator_replay"
+```
 
 ## Safety-Critical Compliance
 Following JPL Power of 10 rules:
