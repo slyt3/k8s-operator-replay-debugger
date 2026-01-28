@@ -201,7 +201,6 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 				slow.Operation.ResourceKind,
 				slow.Operation.Namespace,
 				slow.Operation.Name)
-			
 			report.SlowOperations = append(report.SlowOperations, JSONSlowOperation{
 				Index:      slow.Index,
 				Type:       string(slow.Operation.OperationType),
