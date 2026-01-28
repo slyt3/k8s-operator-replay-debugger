@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	maxAnalysisOperations = 100000
-	loopDetectionWindow   = 100
+	maxAnalysisOperations  = 100000
+	loopDetectionWindow    = 100
 	slowOperationThreshold = 1000
 )
 
@@ -209,10 +209,10 @@ func FindSlowOperations(
 
 // ErrorSummary summarizes errors found in operations.
 type ErrorSummary struct {
-	TotalErrors   int
-	ErrorsByType  map[string]int
-	FirstError    *storage.Operation
-	LastError     *storage.Operation
+	TotalErrors  int
+	ErrorsByType map[string]int
+	FirstError   *storage.Operation
+	LastError    *storage.Operation
 }
 
 // AnalyzeErrors summarizes all errors in operations.
@@ -248,7 +248,7 @@ func AnalyzeErrors(ops []storage.Operation) (*ErrorSummary, error) {
 
 			if len(summary.ErrorsByType) < maxErrorTypes {
 				errorType := string(op.OperationType)
-				summary.ErrorsByType[errorType] = 
+				summary.ErrorsByType[errorType] =
 					summary.ErrorsByType[errorType] + 1
 			}
 		}
@@ -260,11 +260,11 @@ func AnalyzeErrors(ops []storage.Operation) (*ErrorSummary, error) {
 
 // ResourceAccessPattern tracks how resources are accessed.
 type ResourceAccessPattern struct {
-	ResourceKey  string
-	ReadCount    int
-	WriteCount   int
-	FirstAccess  time.Time
-	LastAccess   time.Time
+	ResourceKey string
+	ReadCount   int
+	WriteCount  int
+	FirstAccess time.Time
+	LastAccess  time.Time
 }
 
 // AnalyzeResourceAccess tracks resource access patterns.
@@ -290,7 +290,7 @@ func AnalyzeResourceAccess(
 
 	for i < opCount {
 		op := &ops[i]
-		key := fmt.Sprintf("%s/%s/%s", 
+		key := fmt.Sprintf("%s/%s/%s",
 			op.ResourceKind, op.Namespace, op.Name)
 
 		if len(patterns) >= maxPatterns {
