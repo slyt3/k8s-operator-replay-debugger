@@ -128,7 +128,7 @@ func NewAnalyzeCommand() *cobra.Command {
 		&cfg.Format,
 		"format",
 		"text",
-		"Output format: text or json",
+		"Output format: text (limited output for readability) or json (includes all results)",
 	)
 
 	return cmd
