@@ -56,6 +56,9 @@ type AnalyzeConfig struct {
 	LoopWindow    int
 	SlowThreshold int64
 	Format        string
+	StorageType   string
+	MongoURI      string
+	MongoDatabase string
 }
 
 // NewAnalyzeCommand creates the analyze subcommand.
@@ -128,7 +131,28 @@ func NewAnalyzeCommand() *cobra.Command {
 		&cfg.Format,
 		"format",
 		"text",
-		"Output format: text (limited output for readability) or json (includes all results)",
+		"Output format: text or json",
+	)
+
+	cmd.Flags().StringVar(
+		&cfg.StorageType,
+		"storage",
+		"sqlite",
+		"Storage backend: sqlite or mongodb",
+	)
+
+	cmd.Flags().StringVar(
+		&cfg.MongoURI,
+		"mongo-uri",
+		"mongodb://localhost:27017",
+		"MongoDB connection URI",
+	)
+
+	cmd.Flags().StringVar(
+		&cfg.MongoDatabase,
+		"mongo-db",
+		"operator_replay",
+		"MongoDB database name",
 	)
 
 	return cmd
@@ -153,18 +177,20 @@ func runAnalyze(cfg *AnalyzeConfig, args []string) error {
 		return fmt.Errorf("invalid configuration: %w", err)
 	}
 
-	db, err := storage.NewDatabase(cfg.DatabasePath, 1000000)
+	// Create storage based on type
+	storeCfg := createStorageConfig(cfg)
+	store, err := storage.NewOperationStore(storeCfg)
 	if err != nil {
-		return fmt.Errorf("failed to open database: %w", err)
+		return fmt.Errorf("failed to create storage: %w", err)
 	}
 	defer func() {
-		closeErr := db.Close()
+		closeErr := store.Close()
 		if closeErr != nil && cfg.Format != "json" {
-			fmt.Printf("Warning: failed to close database: %v\n", closeErr)
+			fmt.Printf("Warning: failed to close storage: %v\n", closeErr)
 		}
 	}()
 
-	ops, err := db.QueryOperations(cfg.SessionID)
+	ops, err := store.QueryOperations(cfg.SessionID)
 	if err != nil {
 		return fmt.Errorf("failed to load operations: %w", err)
 	}
@@ -251,7 +277,28 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	fmt.Println(string(jsonBytes))
 	return nil
 }
+// createStorageConfig creates storage configuration.
+func createStorageConfig(cfg *AnalyzeConfig) storage.StorageConfig {
+	err := assert.AssertNotNil(cfg, "config")
+	if err != nil {
+		return storage.StorageConfig{}
+	}
+	
+	storeCfg := storage.StorageConfig{
+		Type:          cfg.StorageType,
+		MaxOperations: 1000000, // Use default max operations
+	}
 
+	if cfg.StorageType == "sqlite" {
+		storeCfg.ConnectionURI = cfg.DatabasePath
+	} else if cfg.StorageType == "mongodb" {
+		storeCfg.ConnectionURI = cfg.MongoURI
+		storeCfg.DatabaseName = cfg.MongoDatabase
+		storeCfg.CollectionName = "operations"
+	}
+
+	return storeCfg
+}
 // outputText generates text format output.
 func outputText(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	fmt.Printf("Analyzing %d operations for session: %s\n\n",
@@ -283,12 +330,34 @@ func outputText(cfg *AnalyzeConfig, ops []storage.Operation) error {
 
 // validateAnalyzeConfig validates configuration.
 func validateAnalyzeConfig(cfg *AnalyzeConfig) error {
-	err := assert.AssertStringNotEmpty(cfg.DatabasePath, "database path")
-	if err != nil {
-		return err
+	// Set default storage type if not specified (for tests)
+	if cfg.StorageType == "" {
+		cfg.StorageType = "sqlite"
 	}
 
-	err = assert.AssertStringNotEmpty(cfg.SessionID, "session ID")
+	// Storage type validation
+	if cfg.StorageType != "sqlite" && cfg.StorageType != "mongodb" {
+		return fmt.Errorf("invalid storage type: %s (must be 'sqlite' or 'mongodb')", cfg.StorageType)
+	}
+
+	// Storage-specific validations
+	if cfg.StorageType == "sqlite" {
+		err := assert.AssertStringNotEmpty(cfg.DatabasePath, "database path")
+		if err != nil {
+			return err
+		}
+	} else if cfg.StorageType == "mongodb" {
+		err := assert.AssertStringNotEmpty(cfg.MongoURI, "mongo URI")
+		if err != nil {
+			return err
+		}
+		err = assert.AssertStringNotEmpty(cfg.MongoDatabase, "mongo database")
+		if err != nil {
+			return err
+		}
+	}
+
+	err := assert.AssertStringNotEmpty(cfg.SessionID, "session ID")
 	if err != nil {
 		return err
 	}
