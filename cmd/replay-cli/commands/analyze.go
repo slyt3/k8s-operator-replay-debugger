@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultLoopWindow = 10
+	defaultLoopWindow    = 10
 	defaultSlowThreshold = 1000
 )
 
@@ -39,23 +39,23 @@ type JSONErrorSummary struct {
 
 // JSONAnalysisReport represents complete analysis in JSON format.
 type JSONAnalysisReport struct {
-	SessionID        string              `json:"session_id"`
-	TotalOperations  int                 `json:"total_operations"`
-	SlowOperations   []JSONSlowOperation `json:"slow_operations"`
-	LoopsDetected    []JSONLoopDetection `json:"loops_detected"`
-	Errors           JSONErrorSummary    `json:"errors"`
+	SessionID       string              `json:"session_id"`
+	TotalOperations int                 `json:"total_operations"`
+	SlowOperations  []JSONSlowOperation `json:"slow_operations"`
+	LoopsDetected   []JSONLoopDetection `json:"loops_detected"`
+	Errors          JSONErrorSummary    `json:"errors"`
 }
 
 // AnalyzeConfig holds analyze command configuration.
 type AnalyzeConfig struct {
-	DatabasePath     string
-	SessionID        string
-	DetectLoops      bool
-	FindSlow         bool
-	AnalyzeErrors    bool
-	LoopWindow       int
-	SlowThreshold    int64
-	Format           string
+	DatabasePath  string
+	SessionID     string
+	DetectLoops   bool
+	FindSlow      bool
+	AnalyzeErrors bool
+	LoopWindow    int
+	SlowThreshold int64
+	Format        string
 }
 
 // NewAnalyzeCommand creates the analyze subcommand.
@@ -183,11 +183,11 @@ func runAnalyze(cfg *AnalyzeConfig, args []string) error {
 // outputJSON generates JSON format output.
 func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	report := JSONAnalysisReport{
-		SessionID:        cfg.SessionID,
-		TotalOperations:  len(ops),
-		SlowOperations:   make([]JSONSlowOperation, 0),
-		LoopsDetected:    make([]JSONLoopDetection, 0),
-		Errors:           JSONErrorSummary{ByType: make(map[string]int)},
+		SessionID:       cfg.SessionID,
+		TotalOperations: len(ops),
+		SlowOperations:  make([]JSONSlowOperation, 0),
+		LoopsDetected:   make([]JSONLoopDetection, 0),
+		Errors:          JSONErrorSummary{ByType: make(map[string]int)},
 	}
 
 	if cfg.FindSlow {
@@ -196,7 +196,14 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("slow operation analysis failed: %w", err)
 		}
 
-		for _, slow := range slowOps {
+		maxDisplay := 10
+		displayCount := len(slowOps)
+		if displayCount > maxDisplay {
+			displayCount = maxDisplay
+		}
+
+		for i := 0; i < displayCount; i++ {
+			slow := &slowOps[i]
 			resource := fmt.Sprintf("%s/%s/%s",
 				slow.Operation.ResourceKind,
 				slow.Operation.Namespace,
@@ -247,7 +254,7 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 
 // outputText generates text format output.
 func outputText(cfg *AnalyzeConfig, ops []storage.Operation) error {
-	fmt.Printf("Analyzing %d operations for session: %s\n\n", 
+	fmt.Printf("Analyzing %d operations for session: %s\n\n",
 		len(ops), cfg.SessionID)
 
 	if cfg.DetectLoops {

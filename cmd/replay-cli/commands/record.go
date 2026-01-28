@@ -27,9 +27,9 @@ This command is typically used as a library in operator code.`,
 
 // SessionInfo holds session information.
 type SessionInfo struct {
-	SessionID  string
-	StartTime  int64
-	OpCount    int
+	SessionID string
+	StartTime int64
+	OpCount   int
 }
 
 // NewSessionsCommand creates the sessions subcommand.
