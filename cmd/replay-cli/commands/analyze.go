@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/operator-replay-debugger/internal/assert"
@@ -14,6 +15,37 @@ const (
 	defaultSlowThreshold = 1000
 )
 
+// JSONSlowOperation represents slow operation in JSON output.
+type JSONSlowOperation struct {
+	Index      int    `json:"index"`
+	Type       string `json:"type"`
+	Resource   string `json:"resource"`
+	DurationMs int64  `json:"duration_ms"`
+}
+
+// JSONLoopDetection represents detected loop in JSON output.
+type JSONLoopDetection struct {
+	StartIndex  int    `json:"start_index"`
+	EndIndex    int    `json:"end_index"`
+	RepeatCount int    `json:"repeat_count"`
+	Description string `json:"description"`
+}
+
+// JSONErrorSummary represents error summary in JSON output.
+type JSONErrorSummary struct {
+	Total  int            `json:"total"`
+	ByType map[string]int `json:"by_type"`
+}
+
+// JSONAnalysisReport represents complete analysis in JSON format.
+type JSONAnalysisReport struct {
+	SessionID        string              `json:"session_id"`
+	TotalOperations  int                 `json:"total_operations"`
+	SlowOperations   []JSONSlowOperation `json:"slow_operations"`
+	LoopsDetected    []JSONLoopDetection `json:"loops_detected"`
+	Errors           JSONErrorSummary    `json:"errors"`
+}
+
 // AnalyzeConfig holds analyze command configuration.
 type AnalyzeConfig struct {
 	DatabasePath     string
@@ -23,6 +55,7 @@ type AnalyzeConfig struct {
 	AnalyzeErrors    bool
 	LoopWindow       int
 	SlowThreshold    int64
+	Format           string
 }
 
 // NewAnalyzeCommand creates the analyze subcommand.
@@ -91,6 +124,13 @@ func NewAnalyzeCommand() *cobra.Command {
 		"Slow operation threshold in ms",
 	)
 
+	cmd.Flags().StringVar(
+		&cfg.Format,
+		"format",
+		"text",
+		"Output format: text or json",
+	)
+
 	return cmd
 }
 
@@ -119,7 +159,7 @@ func runAnalyze(cfg *AnalyzeConfig, args []string) error {
 	}
 	defer func() {
 		closeErr := db.Close()
-		if closeErr != nil {
+		if closeErr != nil && cfg.Format != "json" {
 			fmt.Printf("Warning: failed to close database: %v\n", closeErr)
 		}
 	}()
@@ -133,25 +173,100 @@ func runAnalyze(cfg *AnalyzeConfig, args []string) error {
 		return fmt.Errorf("no operations found for session: %s", cfg.SessionID)
 	}
 
+	if cfg.Format == "json" {
+		return outputJSON(cfg, ops)
+	}
+
+	return outputText(cfg, ops)
+}
+
+// outputJSON generates JSON format output.
+func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
+	report := JSONAnalysisReport{
+		SessionID:        cfg.SessionID,
+		TotalOperations:  len(ops),
+		SlowOperations:   make([]JSONSlowOperation, 0),
+		LoopsDetected:    make([]JSONLoopDetection, 0),
+		Errors:           JSONErrorSummary{ByType: make(map[string]int)},
+	}
+
+	if cfg.FindSlow {
+		slowOps, err := analysis.FindSlowOperations(ops, cfg.SlowThreshold)
+		if err != nil {
+			return fmt.Errorf("slow operation analysis failed: %w", err)
+		}
+
+		for _, slow := range slowOps {
+			resource := fmt.Sprintf("%s/%s/%s",
+				slow.Operation.ResourceKind,
+				slow.Operation.Namespace,
+				slow.Operation.Name)
+			
+			report.SlowOperations = append(report.SlowOperations, JSONSlowOperation{
+				Index:      slow.Index,
+				Type:       string(slow.Operation.OperationType),
+				Resource:   resource,
+				DurationMs: slow.DurationMs,
+			})
+		}
+	}
+
+	if cfg.DetectLoops {
+		patterns, err := analysis.DetectLoops(ops, cfg.LoopWindow)
+		if err != nil {
+			return fmt.Errorf("loop detection failed: %w", err)
+		}
+
+		for _, pattern := range patterns {
+			report.LoopsDetected = append(report.LoopsDetected, JSONLoopDetection{
+				StartIndex:  pattern.StartIndex,
+				EndIndex:    pattern.EndIndex,
+				RepeatCount: pattern.RepeatCount,
+				Description: pattern.Description,
+			})
+		}
+	}
+
+	if cfg.AnalyzeErrors {
+		summary, err := analysis.AnalyzeErrors(ops)
+		if err != nil {
+			return fmt.Errorf("error analysis failed: %w", err)
+		}
+
+		report.Errors.Total = summary.TotalErrors
+		report.Errors.ByType = summary.ErrorsByType
+	}
+
+	jsonBytes, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return fmt.Errorf("JSON encoding failed: %w", err)
+	}
+
+	fmt.Println(string(jsonBytes))
+	return nil
+}
+
+// outputText generates text format output.
+func outputText(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	fmt.Printf("Analyzing %d operations for session: %s\n\n", 
 		len(ops), cfg.SessionID)
 
 	if cfg.DetectLoops {
-		err = analyzeLoops(ops, cfg.LoopWindow)
+		err := analyzeLoops(ops, cfg.LoopWindow)
 		if err != nil {
 			return err
 		}
 	}
 
 	if cfg.FindSlow {
-		err = analyzeSlowOps(ops, cfg.SlowThreshold)
+		err := analyzeSlowOps(ops, cfg.SlowThreshold)
 		if err != nil {
 			return err
 		}
 	}
 
 	if cfg.AnalyzeErrors {
-		err = analyzeErrorPatterns(ops)
+		err := analyzeErrorPatterns(ops)
 		if err != nil {
 			return err
 		}
@@ -190,6 +305,10 @@ func validateAnalyzeConfig(cfg *AnalyzeConfig) error {
 	)
 	if err != nil {
 		return err
+	}
+
+	if cfg.Format != "text" && cfg.Format != "json" {
+		return fmt.Errorf("invalid format: %s (must be 'text' or 'json')", cfg.Format)
 	}
 
 	return nil
