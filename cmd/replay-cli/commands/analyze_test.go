@@ -339,7 +339,7 @@ func TestJSONStructureValid(t *testing.T) {
 		TotalOperations: len(ops),
 		SlowOperations:  make([]JSONSlowOperation, 0),
 		LoopsDetected:   make([]JSONLoopDetection, 0),
-		Errors:          JSONErrorSummary{ByType: make(map[string]int)},
+		Errors:          &JSONErrorSummary{ByType: make(map[string]int)},
 	}
 
 	report.SlowOperations = append(report.SlowOperations, JSONSlowOperation{

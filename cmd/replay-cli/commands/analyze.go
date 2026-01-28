@@ -41,9 +41,9 @@ type JSONErrorSummary struct {
 type JSONAnalysisReport struct {
 	SessionID       string              `json:"session_id"`
 	TotalOperations int                 `json:"total_operations"`
-	SlowOperations  []JSONSlowOperation `json:"slow_operations"`
-	LoopsDetected   []JSONLoopDetection `json:"loops_detected"`
-	Errors          JSONErrorSummary    `json:"errors"`
+	SlowOperations  []JSONSlowOperation `json:"slow_operations,omitempty"`
+	LoopsDetected   []JSONLoopDetection `json:"loops_detected,omitempty"`
+	Errors          *JSONErrorSummary   `json:"errors,omitempty"`
 }
 
 // AnalyzeConfig holds analyze command configuration.
@@ -185,9 +185,6 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	report := JSONAnalysisReport{
 		SessionID:       cfg.SessionID,
 		TotalOperations: len(ops),
-		SlowOperations:  make([]JSONSlowOperation, 0),
-		LoopsDetected:   make([]JSONLoopDetection, 0),
-		Errors:          JSONErrorSummary{ByType: make(map[string]int)},
 	}
 
 	if cfg.FindSlow {
