@@ -223,6 +223,7 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("loop detection failed: %w", err)
 		}
 
+		report.LoopsDetected = make([]JSONLoopDetection, 0, len(patterns))
 		for _, pattern := range patterns {
 			report.LoopsDetected = append(report.LoopsDetected, JSONLoopDetection{
 				StartIndex:  pattern.StartIndex,
@@ -239,8 +240,10 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("error analysis failed: %w", err)
 		}
 
-		report.Errors.Total = summary.TotalErrors
-		report.Errors.ByType = summary.ErrorsByType
+		report.Errors = &JSONErrorSummary{
+			Total:  summary.TotalErrors,
+			ByType: summary.ErrorsByType,
+		}
 	}
 
 	jsonBytes, err := json.MarshalIndent(report, "", "  ")
