@@ -223,7 +223,14 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 			return fmt.Errorf("loop detection failed: %w", err)
 		}
 
-		for _, pattern := range patterns {
+		maxDisplay := 10
+		displayCount := len(patterns)
+		if displayCount > maxDisplay {
+			displayCount = maxDisplay
+		}
+
+		for i := 0; i < displayCount; i++ {
+			pattern := &patterns[i]
 			report.LoopsDetected = append(report.LoopsDetected, JSONLoopDetection{
 				StartIndex:  pattern.StartIndex,
 				EndIndex:    pattern.EndIndex,
