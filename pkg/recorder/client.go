@@ -8,6 +8,8 @@ import (
 
 	"github.com/operator-replay-debugger/internal/assert"
 	"github.com/operator-replay-debugger/pkg/storage"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -203,6 +205,8 @@ func (r *RecordingClient) RecordGet(
 		obj, getErr = r.client.AppsV1().Deployments(namespace).Get(ctx, name, opts)
 	case "ConfigMap":
 		obj, getErr = r.client.CoreV1().ConfigMaps(namespace).Get(ctx, name, opts)
+	case "Secret":
+		obj, getErr = r.client.CoreV1().Secrets(namespace).Get(ctx, name, opts)
 	default:
 		return nil, fmt.Errorf("unsupported resource kind: %s", kind)
 	}
@@ -224,6 +228,278 @@ func (r *RecordingClient) RecordGet(
 	}
 
 	return obj, getErr
+}
+
+// RecordCreate records a CREATE operation with timing.
+// Rule 7: All return values checked.
+func (r *RecordingClient) RecordCreate(
+	ctx context.Context,
+	kind string,
+	namespace string,
+	obj runtime.Object,
+	opts metav1.CreateOptions,
+) (runtime.Object, error) {
+	err := assert.AssertNotNil(r, "recorder")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertStringNotEmpty(kind, "resource kind")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertStringNotEmpty(namespace, "namespace")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertNotNil(obj, "object")
+	if err != nil {
+		return nil, err
+	}
+
+	if kind != "ConfigMap" && kind != "Secret" {
+		return nil, fmt.Errorf("unsupported resource kind: %s", kind)
+	}
+
+	name, err := extractObjectName(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+
+	created, createErr := r.createObject(ctx, kind, namespace, obj, opts)
+
+	duration := time.Since(start)
+
+	recordErr := r.recordOperation(
+		storage.OperationCreate,
+		kind,
+		namespace,
+		name,
+		created,
+		createErr,
+		duration,
+	)
+	if recordErr != nil {
+		return created, fmt.Errorf("record failed: %w (original error: %v)",
+			recordErr, createErr)
+	}
+
+	return created, createErr
+}
+
+// RecordUpdate records an UPDATE operation with timing.
+// Rule 7: All return values checked.
+func (r *RecordingClient) RecordUpdate(
+	ctx context.Context,
+	kind string,
+	namespace string,
+	obj runtime.Object,
+	opts metav1.UpdateOptions,
+) (runtime.Object, error) {
+	err := assert.AssertNotNil(r, "recorder")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertStringNotEmpty(kind, "resource kind")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertStringNotEmpty(namespace, "namespace")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertNotNil(obj, "object")
+	if err != nil {
+		return nil, err
+	}
+
+	if kind != "ConfigMap" && kind != "Secret" {
+		return nil, fmt.Errorf("unsupported resource kind: %s", kind)
+	}
+
+	name, err := extractObjectName(obj)
+	if err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+
+	updated, updateErr := r.updateObject(ctx, kind, namespace, obj, opts)
+
+	duration := time.Since(start)
+
+	recordErr := r.recordOperation(
+		storage.OperationUpdate,
+		kind,
+		namespace,
+		name,
+		updated,
+		updateErr,
+		duration,
+	)
+	if recordErr != nil {
+		return updated, fmt.Errorf("record failed: %w (original error: %v)",
+			recordErr, updateErr)
+	}
+
+	return updated, updateErr
+}
+
+// RecordDelete records a DELETE operation with timing.
+// Rule 7: All return values checked.
+func (r *RecordingClient) RecordDelete(
+	ctx context.Context,
+	kind string,
+	namespace string,
+	name string,
+	opts metav1.DeleteOptions,
+) error {
+	err := assert.AssertNotNil(r, "recorder")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertStringNotEmpty(kind, "resource kind")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertStringNotEmpty(namespace, "namespace")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertStringNotEmpty(name, "resource name")
+	if err != nil {
+		return err
+	}
+
+	start := time.Now()
+	var deleteErr error
+
+	switch kind {
+	case "ConfigMap":
+		deleteErr = r.client.CoreV1().ConfigMaps(namespace).Delete(ctx, name, opts)
+	case "Secret":
+		deleteErr = r.client.CoreV1().Secrets(namespace).Delete(ctx, name, opts)
+	default:
+		return fmt.Errorf("unsupported resource kind: %s", kind)
+	}
+
+	duration := time.Since(start)
+
+	recordErr := r.recordOperation(
+		storage.OperationDelete,
+		kind,
+		namespace,
+		name,
+		nil,
+		deleteErr,
+		duration,
+	)
+	if recordErr != nil {
+		return fmt.Errorf("record failed: %w (original error: %v)",
+			recordErr, deleteErr)
+	}
+
+	return deleteErr
+}
+
+func (r *RecordingClient) createObject(
+	ctx context.Context,
+	kind string,
+	namespace string,
+	obj runtime.Object,
+	opts metav1.CreateOptions,
+) (runtime.Object, error) {
+	err := assert.AssertNotNil(r, "recorder")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertNotNil(obj, "object")
+	if err != nil {
+		return nil, err
+	}
+
+	switch kind {
+	case "ConfigMap":
+		cm, ok := obj.(*corev1.ConfigMap)
+		if !ok {
+			return nil, fmt.Errorf("invalid object type for ConfigMap")
+		}
+		return r.client.CoreV1().ConfigMaps(namespace).Create(ctx, cm, opts)
+	case "Secret":
+		secret, ok := obj.(*corev1.Secret)
+		if !ok {
+			return nil, fmt.Errorf("invalid object type for Secret")
+		}
+		return r.client.CoreV1().Secrets(namespace).Create(ctx, secret, opts)
+	default:
+		return nil, fmt.Errorf("unsupported resource kind: %s", kind)
+	}
+}
+
+func (r *RecordingClient) updateObject(
+	ctx context.Context,
+	kind string,
+	namespace string,
+	obj runtime.Object,
+	opts metav1.UpdateOptions,
+) (runtime.Object, error) {
+	err := assert.AssertNotNil(r, "recorder")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertNotNil(obj, "object")
+	if err != nil {
+		return nil, err
+	}
+
+	switch kind {
+	case "ConfigMap":
+		cm, ok := obj.(*corev1.ConfigMap)
+		if !ok {
+			return nil, fmt.Errorf("invalid object type for ConfigMap")
+		}
+		return r.client.CoreV1().ConfigMaps(namespace).Update(ctx, cm, opts)
+	case "Secret":
+		secret, ok := obj.(*corev1.Secret)
+		if !ok {
+			return nil, fmt.Errorf("invalid object type for Secret")
+		}
+		return r.client.CoreV1().Secrets(namespace).Update(ctx, secret, opts)
+	default:
+		return nil, fmt.Errorf("unsupported resource kind: %s", kind)
+	}
+}
+
+func extractObjectName(obj runtime.Object) (string, error) {
+	err := assert.AssertNotNil(obj, "object")
+	if err != nil {
+		return "", err
+	}
+
+	accessor, metaErr := meta.Accessor(obj)
+	if metaErr != nil {
+		return "", fmt.Errorf("object metadata error: %w", metaErr)
+	}
+
+	name := accessor.GetName()
+	err = assert.AssertStringNotEmpty(name, "object name")
+	if err != nil {
+		return "", err
+	}
+
+	return name, nil
 }
 
 // GetSequenceNumber returns current sequence number.
