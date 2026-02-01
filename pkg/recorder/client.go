@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/operator-replay-debugger/internal/assert"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/internal/assert"
+	"github.com/slyt3/kubestep/pkg/storage"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

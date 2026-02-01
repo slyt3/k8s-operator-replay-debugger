@@ -1,5 +1,5 @@
 # Binaries
-replay-cli
+/kubestep
 *.exe
 *.dll
 *.so

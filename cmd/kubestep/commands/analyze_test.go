@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/pkg/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -1,14 +1,12 @@
-# Kubernetes Operator Replay Debugger
+# KubeStep
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Safety Critical](https://img.shields.io/badge/Safety-JPL%20Power%20of%2010-green)](SAFETY_COMPLIANCE.md)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![CI](https://github.com/slyt3/k8s-operator-replay-debugger/actions/workflows/ci.yml/badge.svg)](https://github.com/slyt3/k8s-operator-replay-debugger/actions/workflows/ci.yml)
+[![CI](https://github.com/slyt3/kubestep/actions/workflows/ci.yml/badge.svg)](https://github.com/slyt3/kubestep/actions/workflows/ci.yml)
 
 > Record, replay, and debug Kubernetes operator reconciliation loops with time-travel debugging
-
-# Kubernetes Operator Replay Debugger
 
 A production-grade tool for recording, replaying, and analyzing Kubernetes operator reconciliation loops. Helps debug operator behavior by capturing all API interactions and enabling time-travel debugging.
 
@@ -61,14 +59,14 @@ A production-grade tool for recording, replaying, and analyzing Kubernetes opera
 ### Build from Source
 
 ```bash
-git clone https://github.com/your-org/k8s-operator-replay-debugger
-cd k8s-operator-replay-debugger
+git clone https://github.com/your-org/kubestep
+cd kubestep
 
 # Install dependencies
 go mod download
 
 # Build the CLI
-go build -o replay-cli ./cmd/replay-cli
+go build -o kubestep ./cmd/kubestep
 
 # Run tests
 go test ./...
@@ -85,8 +83,8 @@ package main
 
 import (
     "context"
-    "github.com/operator-replay-debugger/pkg/recorder"
-    "github.com/operator-replay-debugger/pkg/storage"
+    "github.com/slyt3/kubestep/pkg/recorder"
+    "github.com/slyt3/kubestep/pkg/storage"
     "k8s.io/client-go/kubernetes"
 )
 
@@ -128,13 +126,13 @@ func main() {
 
 ```bash
 # List available sessions
-./replay-cli sessions -d recordings.db
+./kubestep sessions -d recordings.db
 
 # Replay a session automatically
-./replay-cli replay prod-deployment-001 -d recordings.db
+./kubestep replay prod-deployment-001 -d recordings.db
 
 # Interactive replay with step controls
-./replay-cli replay prod-deployment-001 -d recordings.db -i
+./kubestep replay prod-deployment-001 -d recordings.db -i
 
 # Interactive commands:
 #   n - step forward
@@ -149,25 +147,25 @@ func main() {
 **SQLite Storage (default):**
 ```bash
 # Detect loops, slow operations, and errors
-./replay-cli analyze prod-deployment-001 -d recordings.db
+./kubestep analyze prod-deployment-001 -d recordings.db
 
 # Only detect loops
-./replay-cli analyze prod-deployment-001 -d recordings.db --loops --no-slow --no-errors
+./kubestep analyze prod-deployment-001 -d recordings.db --loops --no-slow --no-errors
 
 # JSON output for automation and CI/CD pipelines
-./replay-cli analyze prod-deployment-001 -d recordings.db --format json > report.json
+./kubestep analyze prod-deployment-001 -d recordings.db --format json > report.json
 ```
 
 **MongoDB Storage:**
 ```bash
 # Analyze with MongoDB backend
-./replay-cli analyze prod-deployment-001 \
+./kubestep analyze prod-deployment-001 \
     --storage mongodb \
     --mongo-uri "mongodb://localhost:27017" \
-    --mongo-db "operator_replay"
+    --mongo-db "kubestep"
 
 # MongoDB with custom settings
-./replay-cli analyze prod-deployment-001 \
+./kubestep analyze prod-deployment-001 \
     --storage mongodb \
     --mongo-uri "mongodb://user:pass@cluster.mongodb.net" \
     --mongo-db "production_debugging" \
@@ -182,12 +180,12 @@ Infer cross-controller chains like:
 
 **Text output:**
 ```bash
-./replay-cli analyze causality --session prod-deployment-001 -d recordings.db
+./kubestep analyze causality --session prod-deployment-001 -d recordings.db
 ```
 
 **JSON output (graph nodes/edges):**
 ```bash
-./replay-cli analyze causality --session prod-deployment-001 \
+./kubestep analyze causality --session prod-deployment-001 \
   -d recordings.db \
   --format json \
   --max-depth 6
@@ -195,7 +193,7 @@ Infer cross-controller chains like:
 
 **Optional window + payloads:**
 ```bash
-./replay-cli analyze causality --session prod-deployment-001 \
+./kubestep analyze causality --session prod-deployment-001 \
   -d recordings.db \
   --window "2024-12-08T10:00:00Z,2024-12-08T10:10:00Z" \
   --format json \
@@ -281,9 +279,9 @@ go tool cover -html=coverage.out
 ## Project Structure
 
 ```
-k8s-operator-replay-debugger/
+kubestep/
 ├── cmd/
-│   └── replay-cli/
+│   └── kubestep/
 │       ├── main.go           # CLI entry point
 │       └── commands/         # Subcommands
 │           ├── replay.go     # Replay operations
@@ -337,7 +335,7 @@ recordingClient.Disable()
 
 # Copy recordings.db to local machine
 # Replay locally
-./replay-cli replay prod-issue-123 -i
+./kubestep replay prod-issue-123 -i
 ```
 
 ### Performance Analysis
@@ -345,7 +343,7 @@ recordingClient.Disable()
 Find slow operations causing bottlenecks:
 
 ```bash
-./replay-cli analyze session-001 --slow --threshold 500
+./kubestep analyze session-001 --slow --threshold 500
 ```
 
 ### Loop Detection
@@ -353,7 +351,7 @@ Find slow operations causing bottlenecks:
 Identify infinite reconciliation loops:
 
 ```bash
-./replay-cli analyze session-001 --loops --window 10
+./kubestep analyze session-001 --loops --window 10
 ```
 
 ### Error Pattern Analysis
@@ -361,7 +359,7 @@ Identify infinite reconciliation loops:
 Understand error frequency and types:
 
 ```bash
-./replay-cli analyze session-001 --errors
+./kubestep analyze session-001 --errors
 ```
 
 ### JSON Export for Automation
@@ -370,10 +368,10 @@ Generate machine-readable analysis reports for CI/CD pipelines:
 
 ```bash
 # Export all analysis as JSON
-./replay-cli analyze session-001 --format json > analysis.json
+./kubestep analyze session-001 --format json > analysis.json
 
 # Only export slow operations analysis
-./replay-cli analyze session-001 --slow --no-loops --no-errors --format json
+./kubestep analyze session-001 --slow --no-loops --no-errors --format json
 ```
 
 Example JSON output:

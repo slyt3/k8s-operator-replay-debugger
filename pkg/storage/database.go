@@ -6,7 +6,7 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/operator-replay-debugger/internal/assert"
+	"github.com/slyt3/kubestep/internal/assert"
 )
 
 const (

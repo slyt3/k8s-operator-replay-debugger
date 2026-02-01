@@ -26,7 +26,7 @@ jobs:
       run: go mod download
     
     - name: Build CLI
-      run: go build -v -o replay-cli ./cmd/replay-cli
+      run: go build -v -o kubestep ./cmd/kubestep
     
     - name: Build packages only
       run: go build -v ./pkg/... ./internal/...
@@ -35,4 +35,4 @@ jobs:
       run: go test -v ./pkg/... ./internal/...
     
     - name: Verify binary
-      run: ./replay-cli --version
+      run: ./kubestep --version

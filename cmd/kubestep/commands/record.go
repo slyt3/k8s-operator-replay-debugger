@@ -3,8 +3,8 @@ package commands
 import (
 	"fmt"
 
-	"github.com/operator-replay-debugger/internal/assert"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/internal/assert"
+	"github.com/slyt3/kubestep/pkg/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -75,7 +75,7 @@ func runSessions(dbPath string) error {
 	}()
 
 	fmt.Println("Available Sessions:")
-	fmt.Println("(Use 'replay-cli replay <session-id>' to replay)")
+	fmt.Println("(Use 'kubestep replay <session-id>' to replay)")
 	fmt.Println()
 	fmt.Println("Note: Full session listing requires additional DB methods")
 

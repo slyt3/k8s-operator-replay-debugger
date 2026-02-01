@@ -6,8 +6,8 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/operator-replay-debugger/internal/assert"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/internal/assert"
+	"github.com/slyt3/kubestep/pkg/storage"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 

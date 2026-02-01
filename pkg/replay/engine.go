@@ -3,8 +3,8 @@ package replay
 import (
 	"fmt"
 
-	"github.com/operator-replay-debugger/internal/assert"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/internal/assert"
+	"github.com/slyt3/kubestep/pkg/storage"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )

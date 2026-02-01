@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/operator-replay-debugger/pkg/recorder"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/pkg/recorder"
+	"github.com/slyt3/kubestep/pkg/storage"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -23,7 +23,7 @@ const (
 // into a Kubernetes operator reconciliation loop.
 
 func main() {
-	fmt.Println("Kubernetes Operator Recording Example")
+	fmt.Println("KubeStep Recording Example")
 	fmt.Println("Note: This requires a working Kubernetes cluster")
 	fmt.Println()
 
@@ -79,7 +79,7 @@ func main() {
 	fmt.Printf("Database: operator_recordings.db\n")
 	fmt.Printf("Session: %s\n", sessionID)
 	fmt.Println("\nReplay with:")
-	fmt.Printf("  ./replay-cli replay %s -d operator_recordings.db\n", sessionID)
+	fmt.Printf("  ./kubestep replay %s -d operator_recordings.db\n", sessionID)
 }
 
 // runReconciliationLoop simulates an operator reconciliation loop.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/operator-replay-debugger/internal/assert"
+	"github.com/slyt3/kubestep/internal/assert"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"

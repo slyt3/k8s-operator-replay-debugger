@@ -1,6 +1,6 @@
 .PHONY: all build test clean install lint run-sample help
 
-BINARY_NAME=replay-cli
+BINARY_NAME=kubestep
 SAMPLE_DB=sample_recordings.db
 
 all: lint test build
@@ -19,7 +19,7 @@ help:
 
 build:
 	@echo "Building $(BINARY_NAME)..."
-	go build -v -o $(BINARY_NAME) ./cmd/replay-cli
+	go build -v -o $(BINARY_NAME) ./cmd/kubestep
 	@echo "Build complete: ./$(BINARY_NAME)"
 
 test:
@@ -46,7 +46,7 @@ clean:
 
 install: build
 	@echo "Installing to GOPATH/bin..."
-	go install ./cmd/replay-cli
+	go install ./cmd/kubestep
 
 lint:
 	@echo "Running static analysis..."

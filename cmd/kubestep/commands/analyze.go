@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/operator-replay-debugger/internal/assert"
-	"github.com/operator-replay-debugger/pkg/analysis"
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/internal/assert"
+	"github.com/slyt3/kubestep/pkg/analysis"
+	"github.com/slyt3/kubestep/pkg/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -151,7 +151,7 @@ func NewAnalyzeCommand() *cobra.Command {
 	cmd.Flags().StringVar(
 		&cfg.MongoDatabase,
 		"mongo-db",
-		"operator_replay",
+		"kubestep",
 		"MongoDB database name",
 	)
 

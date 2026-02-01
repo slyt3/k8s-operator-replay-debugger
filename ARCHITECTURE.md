@@ -1,4 +1,4 @@
-# Kubernetes Operator Replay Debugger - Architecture
+# KubeStep - Architecture
 
 ## Overview
 Tool for recording, replaying, and analyzing Kubernetes operator reconciliation loops.
@@ -56,12 +56,12 @@ Helps debug operator behavior by capturing all API interactions and replaying th
 ### Backend Selection
 ```bash
 # SQLite (default)
-./replay-cli analyze session-001 --storage sqlite -d recordings.db
+./kubestep analyze session-001 --storage sqlite -d recordings.db
 
 # MongoDB
-./replay-cli analyze session-001 --storage mongodb \
+./kubestep analyze session-001 --storage mongodb \
     --mongo-uri "mongodb://localhost:27017" \
-    --mongo-db "operator_replay"
+    --mongo-db "kubestep"
 ```
 
 ## Safety-Critical Compliance

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/operator-replay-debugger/cmd/replay-cli/commands"
+	"github.com/slyt3/kubestep/cmd/kubestep/commands"
 	"github.com/spf13/cobra"
 )
 
@@ -35,8 +35,8 @@ func runCLI() int {
 // Rule 4: Function under 60 lines.
 func buildRootCommand() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "replay-cli",
-		Short: "Kubernetes Operator Replay Debugger",
+		Use:   "kubestep",
+		Short: "KubeStep",
 		Long: `Record, replay, and analyze Kubernetes operator reconciliation loops.
 Helps debug operator behavior by capturing all API interactions.`,
 		Version: version,

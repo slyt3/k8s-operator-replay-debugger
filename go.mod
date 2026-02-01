@@ -1,4 +1,4 @@
-module github.com/operator-replay-debugger
+module github.com/slyt3/kubestep
 
 go 1.22
 

@@ -1,4 +1,4 @@
-# Getting Started - Kubernetes Operator Replay Debugger
+# Getting Started - KubeStep
 
 This guide will get you from zero to running the replay debugger in under 10 minutes on Linux Mint.
 
@@ -30,7 +30,7 @@ sudo apt-get install -y build-essential libsqlite3-dev
 ### Step 2: Build the Project (1 minute)
 
 ```bash
-cd k8s-operator-replay-debugger
+cd kubestep
 
 # Automated setup (does everything)
 chmod +x setup.sh
@@ -51,23 +51,23 @@ That's it. The setup script:
 # Let's replay it
 
 # See what sessions are available
-./replay-cli sessions -d sample_recordings.db
+./kubestep sessions -d sample_recordings.db
 
 # Replay one session
-./replay-cli replay sample-session-001 -d sample_recordings.db
+./kubestep replay sample-session-001 -d sample_recordings.db
 
 # Try interactive mode
-./replay-cli replay sample-session-001 -d sample_recordings.db -i
+./kubestep replay sample-session-001 -d sample_recordings.db -i
 # Press 'n' to step forward
 # Press 'b' to step backward
 # Press 's' for stats
 # Press 'q' to quit
 
 # Analyze for problems
-./replay-cli analyze sample-session-002 -d sample_recordings.db
+./kubestep analyze sample-session-002 -d sample_recordings.db
 
 # Generate JSON report for automation
-./replay-cli analyze sample-session-002 -d sample_recordings.db --format json
+./kubestep analyze sample-session-002 -d sample_recordings.db --format json
 ```
 
 ## What Just Happened?
@@ -109,26 +109,26 @@ scp prod-server:/path/to/prod_recordings.db ./
 4. **Debug Locally**:
 ```bash
 # Replay the exact sequence
-./replay-cli replay prod-issue-2024-12-08 -d prod_recordings.db -i
+./kubestep replay prod-issue-2024-12-08 -d prod_recordings.db -i
 
 # Analyze what went wrong
-./replay-cli analyze prod-issue-2024-12-08 -d prod_recordings.db
+./kubestep analyze prod-issue-2024-12-08 -d prod_recordings.db
 
 # Find slow operations
-./replay-cli analyze prod-issue-2024-12-08 --slow --threshold 1000
+./kubestep analyze prod-issue-2024-12-08 --slow --threshold 1000
 
 # Detect infinite loops
-./replay-cli analyze prod-issue-2024-12-08 --loops --window 10
+./kubestep analyze prod-issue-2024-12-08 --loops --window 10
 ```
 
 ## Project Structure Explained
 
 ```
-k8s-operator-replay-debugger/
-├── replay-cli              Your main binary (run this)
+kubestep/
+├── kubestep              Your main binary (run this)
 ├── sample_recordings.db    Sample data (try with this)
 │
-├── cmd/replay-cli/         CLI application source
+├── cmd/kubestep/         CLI application source
 │   ├── main.go            Entry point
 │   └── commands/          All subcommands
 │
@@ -170,33 +170,33 @@ make install        # Install to GOPATH/bin
 **Basic Commands:**
 ```bash
 # List sessions
-./replay-cli sessions -d <database>
+./kubestep sessions -d <database>
 
 # Replay a session
-./replay-cli replay <session-id> -d <database>
+./kubestep replay <session-id> -d <database>
 
 # Interactive replay
-./replay-cli replay <session-id> -d <database> -i
+./kubestep replay <session-id> -d <database> -i
 
 # Get help
-./replay-cli --help
-./replay-cli replay --help
-./replay-cli analyze --help
+./kubestep --help
+./kubestep replay --help
+./kubestep analyze --help
 ```
 
 **Analyze with Different Storage Backends:**
 ```bash
 # SQLite (default) - great for development
-./replay-cli analyze <session-id> -d <database>
+./kubestep analyze <session-id> -d <database>
 
 # MongoDB - great for production/teams
-./replay-cli analyze <session-id> \
+./kubestep analyze <session-id> \
     --storage mongodb \
     --mongo-uri "mongodb://localhost:27017" \
-    --mongo-db "operator_replay"
+    --mongo-db "kubestep"
 
 # MongoDB with authentication
-./replay-cli analyze <session-id> \
+./kubestep analyze <session-id> \
     --storage mongodb \
     --mongo-uri "mongodb://user:pass@cluster.mongodb.net" \
     --mongo-db "prod_debugging"
@@ -222,8 +222,8 @@ package main
 
 import (
     "context"
-    "github.com/operator-replay-debugger/pkg/recorder"
-    "github.com/operator-replay-debugger/pkg/storage"
+    "github.com/slyt3/kubestep/pkg/recorder"
+    "github.com/slyt3/kubestep/pkg/storage"
     "k8s.io/client-go/kubernetes"
 )
 
@@ -270,7 +270,7 @@ q - Quit
 
 Example session:
 ```
-$ ./replay-cli replay sample-session-001 -d sample_recordings.db -i
+$ ./kubestep replay sample-session-001 -d sample_recordings.db -i
 Interactive Replay Mode
 Commands: n=next, b=back, r=reset, s=stats, q=quit
 
@@ -303,7 +303,7 @@ Operation Statistics:
 
 ### Find Slow Operations
 ```bash
-./replay-cli analyze sample-session-002 -d sample_recordings.db --slow --threshold 1500
+./kubestep analyze sample-session-002 -d sample_recordings.db --slow --threshold 1500
 
 === Slow Operations ===
 Found 5 slow operations (>1500ms):
@@ -315,7 +315,7 @@ Found 5 slow operations (>1500ms):
 
 ### Detect Loops
 ```bash
-./replay-cli analyze sample-session-001 -d sample_recordings.db --loops
+./kubestep analyze sample-session-001 -d sample_recordings.db --loops
 
 === Loop Detection ===
 Found 2 potential loops:
@@ -325,7 +325,7 @@ Found 2 potential loops:
 
 ### Error Analysis
 ```bash
-./replay-cli analyze sample-session-003 -d sample_recordings.db --errors
+./kubestep analyze sample-session-003 -d sample_recordings.db --errors
 
 === Error Analysis ===
 Total Errors: 3
@@ -360,10 +360,10 @@ sudo apt-get install -y build-essential
 sudo apt-get install -y libsqlite3-dev
 ```
 
-### "permission denied: ./replay-cli"
+### "permission denied: ./kubestep"
 ```bash
 # Make it executable
-chmod +x replay-cli
+chmod +x kubestep
 ```
 
 ## What Makes This Special
@@ -406,10 +406,10 @@ BUILD
   ./setup.sh              Full setup
 
 RUN
-  ./replay-cli sessions -d DB
-  ./replay-cli replay SESSION -d DB
-  ./replay-cli replay SESSION -d DB -i
-  ./replay-cli analyze SESSION -d DB
+  ./kubestep sessions -d DB
+  ./kubestep replay SESSION -d DB
+  ./kubestep replay SESSION -d DB -i
+  ./kubestep analyze SESSION -d DB
 
 INTERACTIVE
   n - next    s - stats

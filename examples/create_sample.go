@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/operator-replay-debugger/pkg/storage"
+	"github.com/slyt3/kubestep/pkg/storage"
 )
 
 const (
@@ -49,10 +49,10 @@ func main() {
 
 	fmt.Println("\nSample database created: sample_recordings.db")
 	fmt.Println("\nTry these commands:")
-	fmt.Println("  ./replay-cli sessions -d sample_recordings.db")
-	fmt.Println("  ./replay-cli replay sample-session-001 -d sample_recordings.db")
-	fmt.Println("  ./replay-cli replay sample-session-001 -d sample_recordings.db -i")
-	fmt.Println("  ./replay-cli analyze sample-session-002 -d sample_recordings.db")
+	fmt.Println("  ./kubestep sessions -d sample_recordings.db")
+	fmt.Println("  ./kubestep replay sample-session-001 -d sample_recordings.db")
+	fmt.Println("  ./kubestep replay sample-session-001 -d sample_recordings.db -i")
+	fmt.Println("  ./kubestep analyze sample-session-002 -d sample_recordings.db")
 }
 
 func createNormalSession(db *storage.Database) error {
