@@ -107,6 +107,7 @@ func main() {
         Database:    db,
         SessionID:   "prod-deployment-001",
         MaxSequence: 1000000,
+        ActorID:     "my-operator/controller-a",
     })
     if err != nil {
         panic(err)
@@ -174,6 +175,33 @@ func main() {
     --format json
 ```
 
+## Causality Graph (A→B→C)
+
+Infer cross-controller chains like:
+`controller A WRITE -> controller B RECONCILE -> controller B WRITE -> controller C RECONCILE`.
+
+**Text output:**
+```bash
+./replay-cli analyze causality --session prod-deployment-001 -d recordings.db
+```
+
+**JSON output (graph nodes/edges):**
+```bash
+./replay-cli analyze causality --session prod-deployment-001 \
+  -d recordings.db \
+  --format json \
+  --max-depth 6
+```
+
+**Optional window + payloads:**
+```bash
+./replay-cli analyze causality --session prod-deployment-001 \
+  -d recordings.db \
+  --window "2024-12-08T10:00:00Z,2024-12-08T10:10:00Z" \
+  --format json \
+  --include-payloads
+```
+
 ## Database Schema
 
 ```sql
@@ -188,7 +216,28 @@ CREATE TABLE operations (
     name TEXT,
     resource_data TEXT,
     error TEXT,
-    duration_ms INTEGER NOT NULL
+    duration_ms INTEGER NOT NULL,
+    actor_id TEXT,
+    uid TEXT,
+    resource_version TEXT,
+    generation INTEGER,
+    verb TEXT
+);
+
+CREATE TABLE reconcile_spans (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    start_ts INTEGER NOT NULL,
+    end_ts INTEGER,
+    duration_ms INTEGER,
+    kind TEXT NOT NULL,
+    namespace TEXT,
+    name TEXT,
+    trigger_uid TEXT,
+    trigger_resource_version TEXT,
+    trigger_reason TEXT,
+    error TEXT
 );
 ```
 

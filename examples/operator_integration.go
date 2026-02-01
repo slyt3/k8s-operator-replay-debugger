@@ -58,6 +58,7 @@ func main() {
 		Database:    db,
 		SessionID:   sessionID,
 		MaxSequence: 100000,
+		ActorID:     "example-operator/controller",
 	})
 	if err != nil {
 		fmt.Printf("Failed to create recording client: %v\n", err)

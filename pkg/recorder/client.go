@@ -18,6 +18,8 @@ import (
 const (
 	maxSessionIDLength = 100
 	maxRetries         = 3
+	maxActorIDLength   = 256
+	defaultActorID     = "unknown"
 )
 
 // RecordingClient wraps a Kubernetes client to record all operations.
@@ -29,6 +31,7 @@ type RecordingClient struct {
 	sequenceNum int64
 	enabled     bool
 	maxSequence int64
+	actorID     string
 }
 
 // Config holds recorder configuration.
@@ -38,6 +41,7 @@ type Config struct {
 	Database    *storage.Database
 	SessionID   string
 	MaxSequence int64
+	ActorID     string
 }
 
 // NewRecordingClient creates a new recording client wrapper.
@@ -72,6 +76,20 @@ func NewRecordingClient(cfg Config) (*RecordingClient, error) {
 		cfg.MaxSequence = 1000000
 	}
 
+	if len(cfg.ActorID) == 0 {
+		cfg.ActorID = defaultActorID
+	}
+
+	err = assert.AssertInRange(
+		len(cfg.ActorID),
+		1,
+		maxActorIDLength,
+		"actor_id length",
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &RecordingClient{
 		client:      cfg.Client,
 		db:          cfg.Database,
@@ -79,6 +97,7 @@ func NewRecordingClient(cfg Config) (*RecordingClient, error) {
 		sequenceNum: 0,
 		enabled:     true,
 		maxSequence: cfg.MaxSequence,
+		actorID:     cfg.ActorID,
 	}, nil
 }
 
@@ -151,17 +170,25 @@ func (r *RecordingClient) recordOperation(
 		errorMsg = err.Error()
 	}
 
+	uid, resourceVersion, generation := extractObjectMetadata(obj)
+	verb := string(opType)
+
 	op := &storage.Operation{
-		SessionID:      r.sessionID,
-		SequenceNumber: r.sequenceNum,
-		Timestamp:      time.Now(),
-		OperationType:  opType,
-		ResourceKind:   kind,
-		Namespace:      namespace,
-		Name:           name,
-		ResourceData:   resourceData,
-		Error:          errorMsg,
-		DurationMs:     duration.Milliseconds(),
+		SessionID:       r.sessionID,
+		SequenceNumber:  r.sequenceNum,
+		Timestamp:       time.Now(),
+		OperationType:   opType,
+		ResourceKind:    kind,
+		Namespace:       namespace,
+		Name:            name,
+		ResourceData:    resourceData,
+		Error:           errorMsg,
+		DurationMs:      duration.Milliseconds(),
+		ActorID:         r.actorID,
+		UID:             uid,
+		ResourceVersion: resourceVersion,
+		Generation:      generation,
+		Verb:            verb,
 	}
 
 	insertErr := r.db.InsertOperation(op)
@@ -500,6 +527,19 @@ func extractObjectName(obj runtime.Object) (string, error) {
 	}
 
 	return name, nil
+}
+
+func extractObjectMetadata(obj runtime.Object) (string, string, int64) {
+	if obj == nil {
+		return "", "", 0
+	}
+
+	accessor, err := meta.Accessor(obj)
+	if err != nil {
+		return "", "", 0
+	}
+
+	return string(accessor.GetUID()), accessor.GetResourceVersion(), accessor.GetGeneration()
 }
 
 // GetSequenceNumber returns current sequence number.

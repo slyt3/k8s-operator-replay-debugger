@@ -13,26 +13,49 @@ import (
 
 // MongoStore implements OperationStore using MongoDB.
 type MongoStore struct {
-	client        *mongo.Client
-	database      *mongo.Database
-	collection    *mongo.Collection
-	maxOperations int
-	ctx           context.Context
+	client         *mongo.Client
+	database       *mongo.Database
+	collection     *mongo.Collection
+	spanCollection *mongo.Collection
+	maxOperations  int
+	ctx            context.Context
 }
 
 // MongoOperation represents an operation document in MongoDB.
 type MongoOperation struct {
-	ID             string    `bson:"_id,omitempty"`
-	SessionID      string    `bson:"session_id"`
-	SequenceNumber int64     `bson:"sequence_number"`
-	Timestamp      time.Time `bson:"timestamp"`
-	OperationType  string    `bson:"operation_type"`
-	ResourceKind   string    `bson:"resource_kind"`
-	Namespace      string    `bson:"namespace,omitempty"`
-	Name           string    `bson:"name,omitempty"`
-	ResourceData   string    `bson:"resource_data,omitempty"`
-	Error          string    `bson:"error,omitempty"`
-	DurationMs     int64     `bson:"duration_ms"`
+	ID              string    `bson:"_id,omitempty"`
+	SessionID       string    `bson:"session_id"`
+	SequenceNumber  int64     `bson:"sequence_number"`
+	Timestamp       time.Time `bson:"timestamp"`
+	OperationType   string    `bson:"operation_type"`
+	ResourceKind    string    `bson:"resource_kind"`
+	Namespace       string    `bson:"namespace,omitempty"`
+	Name            string    `bson:"name,omitempty"`
+	ResourceData    string    `bson:"resource_data,omitempty"`
+	Error           string    `bson:"error,omitempty"`
+	DurationMs      int64     `bson:"duration_ms"`
+	ActorID         string    `bson:"actor_id,omitempty"`
+	UID             string    `bson:"uid,omitempty"`
+	ResourceVersion string    `bson:"resource_version,omitempty"`
+	Generation      int64     `bson:"generation,omitempty"`
+	Verb            string    `bson:"verb,omitempty"`
+}
+
+// MongoReconcileSpan represents a reconcile span document in MongoDB.
+type MongoReconcileSpan struct {
+	ID                     string     `bson:"_id,omitempty"`
+	SessionID              string     `bson:"session_id"`
+	ActorID                string     `bson:"actor_id"`
+	StartTime              time.Time  `bson:"start_ts"`
+	EndTime                *time.Time `bson:"end_ts,omitempty"`
+	DurationMs             *int64     `bson:"duration_ms,omitempty"`
+	Kind                   string     `bson:"kind"`
+	Namespace              string     `bson:"namespace,omitempty"`
+	Name                   string     `bson:"name,omitempty"`
+	TriggerUID             string     `bson:"trigger_uid,omitempty"`
+	TriggerResourceVersion string     `bson:"trigger_resource_version,omitempty"`
+	TriggerReason          string     `bson:"trigger_reason,omitempty"`
+	Error                  string     `bson:"error,omitempty"`
 }
 
 // NewMongoStore creates a new MongoDB-based operation store.
@@ -60,13 +83,15 @@ func NewMongoStore(cfg StorageConfig) (*MongoStore, error) {
 
 	database := client.Database(cfg.DatabaseName)
 	collection := database.Collection(cfg.CollectionName)
+	spanCollection := database.Collection("reconcile_spans")
 
 	store := &MongoStore{
-		client:        client,
-		database:      database,
-		collection:    collection,
-		maxOperations: cfg.MaxOperations,
-		ctx:           ctx,
+		client:         client,
+		database:       database,
+		collection:     collection,
+		spanCollection: spanCollection,
+		maxOperations:  cfg.MaxOperations,
+		ctx:            ctx,
 	}
 
 	err = store.createIndexes()
@@ -95,16 +120,21 @@ func (m *MongoStore) InsertOperation(op *Operation) error {
 	}
 
 	mongoOp := MongoOperation{
-		SessionID:      op.SessionID,
-		SequenceNumber: op.SequenceNumber,
-		Timestamp:      op.Timestamp,
-		OperationType:  string(op.OperationType),
-		ResourceKind:   op.ResourceKind,
-		Namespace:      op.Namespace,
-		Name:           op.Name,
-		ResourceData:   op.ResourceData,
-		Error:          op.Error,
-		DurationMs:     op.DurationMs,
+		SessionID:       op.SessionID,
+		SequenceNumber:  op.SequenceNumber,
+		Timestamp:       op.Timestamp,
+		OperationType:   string(op.OperationType),
+		ResourceKind:    op.ResourceKind,
+		Namespace:       op.Namespace,
+		Name:            op.Name,
+		ResourceData:    op.ResourceData,
+		Error:           op.Error,
+		DurationMs:      op.DurationMs,
+		ActorID:         op.ActorID,
+		UID:             op.UID,
+		ResourceVersion: op.ResourceVersion,
+		Generation:      op.Generation,
+		Verb:            op.Verb,
 	}
 
 	_, err = m.collection.InsertOne(m.ctx, mongoOp)
@@ -139,6 +169,144 @@ func (m *MongoStore) QueryOperations(sessionID string) ([]Operation, error) {
 	}()
 
 	return m.scanOperations(cursor)
+}
+
+// InsertReconcileSpan inserts a reconcile span record.
+func (m *MongoStore) InsertReconcileSpan(span *ReconcileSpan) error {
+	err := assert.AssertNotNil(span, "reconcile span")
+	if err != nil {
+		return err
+	}
+
+	err = ValidateReconcileSpan(span)
+	if err != nil {
+		return fmt.Errorf("invalid span: %w", err)
+	}
+
+	mongoSpan := MongoReconcileSpan{
+		ID:                     span.ID,
+		SessionID:              span.SessionID,
+		ActorID:                span.ActorID,
+		StartTime:              span.StartTime,
+		Kind:                   span.Kind,
+		Namespace:              span.Namespace,
+		Name:                   span.Name,
+		TriggerUID:             span.TriggerUID,
+		TriggerResourceVersion: span.TriggerResourceVersion,
+		TriggerReason:          span.TriggerReason,
+		Error:                  span.Error,
+	}
+
+	if !span.EndTime.IsZero() {
+		endTime := span.EndTime
+		mongoSpan.EndTime = &endTime
+	}
+	if span.DurationMs > 0 {
+		duration := span.DurationMs
+		mongoSpan.DurationMs = &duration
+	}
+
+	_, err = m.spanCollection.InsertOne(m.ctx, mongoSpan)
+	if err != nil {
+		return fmt.Errorf("failed to insert reconcile span: %w", err)
+	}
+
+	return nil
+}
+
+// EndReconcileSpan updates end time and error for a span.
+func (m *MongoStore) EndReconcileSpan(
+	spanID string,
+	endTime time.Time,
+	durationMs int64,
+	errMsg string,
+) error {
+	err := assert.AssertStringNotEmpty(spanID, "span ID")
+	if err != nil {
+		return err
+	}
+
+	filter := bson.M{"_id": spanID}
+	update := bson.M{"$set": bson.M{
+		"end_ts":      endTime,
+		"duration_ms": durationMs,
+		"error":       errMsg,
+	}}
+
+	_, err = m.spanCollection.UpdateOne(m.ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update reconcile span: %w", err)
+	}
+
+	return nil
+}
+
+// QueryReconcileSpans retrieves spans for a session.
+func (m *MongoStore) QueryReconcileSpans(sessionID string) ([]ReconcileSpan, error) {
+	err := assert.AssertStringNotEmpty(sessionID, "session ID")
+	if err != nil {
+		return nil, err
+	}
+
+	filter := bson.M{"session_id": sessionID}
+	opts := options.Find().
+		SetSort(bson.M{"start_ts": 1}).
+		SetLimit(int64(maxQueryResults))
+
+	cursor, err := m.spanCollection.Find(m.ctx, filter, opts)
+	if err != nil {
+		return nil, fmt.Errorf("span query failed: %w", err)
+	}
+	defer func() {
+		closeErr := cursor.Close(m.ctx)
+		if closeErr != nil {
+			fmt.Printf("Warning: failed to close cursor: %v\n", closeErr)
+		}
+	}()
+
+	spans := make([]ReconcileSpan, 0, 1000)
+	count := 0
+	maxResults := 10000
+
+	for cursor.Next(m.ctx) && count < maxResults {
+		var mongoSpan MongoReconcileSpan
+
+		err = cursor.Decode(&mongoSpan)
+		if err != nil {
+			return nil, fmt.Errorf("span decode failed: %w", err)
+		}
+
+		span := ReconcileSpan{
+			ID:                     mongoSpan.ID,
+			SessionID:              mongoSpan.SessionID,
+			ActorID:                mongoSpan.ActorID,
+			StartTime:              mongoSpan.StartTime,
+			Kind:                   mongoSpan.Kind,
+			Namespace:              mongoSpan.Namespace,
+			Name:                   mongoSpan.Name,
+			TriggerUID:             mongoSpan.TriggerUID,
+			TriggerResourceVersion: mongoSpan.TriggerResourceVersion,
+			TriggerReason:          mongoSpan.TriggerReason,
+			Error:                  mongoSpan.Error,
+		}
+
+		if mongoSpan.EndTime != nil {
+			span.EndTime = *mongoSpan.EndTime
+		}
+		if mongoSpan.DurationMs != nil {
+			span.DurationMs = *mongoSpan.DurationMs
+		}
+
+		spans = append(spans, span)
+		count = count + 1
+	}
+
+	err = cursor.Err()
+	if err != nil {
+		return nil, fmt.Errorf("span cursor iteration failed: %w", err)
+	}
+
+	return spans, nil
 }
 
 // QueryOperationsByRange retrieves operations within sequence range.
@@ -276,6 +444,24 @@ func (m *MongoStore) createIndexes() error {
 		indexCount = indexCount + 1
 	}
 
+	spanIndexes := []mongo.IndexModel{
+		{
+			Keys: bson.M{"session_id": 1, "start_ts": 1},
+		},
+		{
+			Keys: bson.M{"trigger_uid": 1, "trigger_resource_version": 1},
+		},
+	}
+
+	indexCount = 0
+	for indexCount < len(spanIndexes) && indexCount < maxIndexes {
+		_, err := m.spanCollection.Indexes().CreateOne(m.ctx, spanIndexes[indexCount])
+		if err != nil {
+			return fmt.Errorf("failed to create span index %d: %w", indexCount, err)
+		}
+		indexCount = indexCount + 1
+	}
+
 	return nil
 }
 
@@ -294,16 +480,21 @@ func (m *MongoStore) scanOperations(cursor *mongo.Cursor) ([]Operation, error) {
 		}
 
 		op := Operation{
-			SessionID:      mongoOp.SessionID,
-			SequenceNumber: mongoOp.SequenceNumber,
-			Timestamp:      mongoOp.Timestamp,
-			OperationType:  OperationType(mongoOp.OperationType),
-			ResourceKind:   mongoOp.ResourceKind,
-			Namespace:      mongoOp.Namespace,
-			Name:           mongoOp.Name,
-			ResourceData:   mongoOp.ResourceData,
-			Error:          mongoOp.Error,
-			DurationMs:     mongoOp.DurationMs,
+			SessionID:       mongoOp.SessionID,
+			SequenceNumber:  mongoOp.SequenceNumber,
+			Timestamp:       mongoOp.Timestamp,
+			OperationType:   OperationType(mongoOp.OperationType),
+			ResourceKind:    mongoOp.ResourceKind,
+			Namespace:       mongoOp.Namespace,
+			Name:            mongoOp.Name,
+			ResourceData:    mongoOp.ResourceData,
+			Error:           mongoOp.Error,
+			DurationMs:      mongoOp.DurationMs,
+			ActorID:         mongoOp.ActorID,
+			UID:             mongoOp.UID,
+			ResourceVersion: mongoOp.ResourceVersion,
+			Generation:      mongoOp.Generation,
+			Verb:            mongoOp.Verb,
 		}
 
 		operations = append(operations, op)

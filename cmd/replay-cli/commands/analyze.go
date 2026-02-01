@@ -155,6 +155,8 @@ func NewAnalyzeCommand() *cobra.Command {
 		"MongoDB database name",
 	)
 
+	cmd.AddCommand(NewCausalityCommand())
+
 	return cmd
 }
 
@@ -277,13 +279,14 @@ func outputJSON(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	fmt.Println(string(jsonBytes))
 	return nil
 }
+
 // createStorageConfig creates storage configuration.
 func createStorageConfig(cfg *AnalyzeConfig) storage.StorageConfig {
 	err := assert.AssertNotNil(cfg, "config")
 	if err != nil {
 		return storage.StorageConfig{}
 	}
-	
+
 	storeCfg := storage.StorageConfig{
 		Type:          cfg.StorageType,
 		MaxOperations: 1000000, // Use default max operations
@@ -299,6 +302,7 @@ func createStorageConfig(cfg *AnalyzeConfig) storage.StorageConfig {
 
 	return storeCfg
 }
+
 // outputText generates text format output.
 func outputText(cfg *AnalyzeConfig, ops []storage.Operation) error {
 	fmt.Printf("Analyzing %d operations for session: %s\n\n",

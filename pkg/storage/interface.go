@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/operator-replay-debugger/internal/assert"
 )
@@ -13,7 +14,17 @@ type OperationStore interface {
 	QueryOperations(sessionID string) ([]Operation, error)
 	QueryOperationsByRange(sessionID string, start, end int64) ([]Operation, error)
 	ListSessions() ([]SessionInfo, error)
+	InsertReconcileSpan(span *ReconcileSpan) error
+	EndReconcileSpan(spanID string, endTime time.Time, durationMs int64, errMsg string) error
+	QueryReconcileSpans(sessionID string) ([]ReconcileSpan, error)
 	Close() error
+}
+
+// ReconcileSpanStore defines the interface for storing reconcile spans.
+type ReconcileSpanStore interface {
+	InsertReconcileSpan(span *ReconcileSpan) error
+	EndReconcileSpan(spanID string, endTime time.Time, durationMs int64, errMsg string) error
+	QueryReconcileSpans(sessionID string) ([]ReconcileSpan, error)
 }
 
 // SessionInfo holds basic session metadata.

@@ -11,11 +11,14 @@ import (
 
 // SQLiteStore implements OperationStore using SQLite.
 type SQLiteStore struct {
-	db            *sql.DB
-	insertStmt    *sql.Stmt
-	queryStmt     *sql.Stmt
-	sessionStmt   *sql.Stmt
-	maxOperations int
+	db             *sql.DB
+	insertStmt     *sql.Stmt
+	queryStmt      *sql.Stmt
+	sessionStmt    *sql.Stmt
+	insertSpanStmt *sql.Stmt
+	endSpanStmt    *sql.Stmt
+	querySpanStmt  *sql.Stmt
+	maxOperations  int
 }
 
 // NewSQLiteStore creates a new SQLite-based operation store.
@@ -76,6 +79,11 @@ func (s *SQLiteStore) InsertOperation(op *Operation) error {
 		op.ResourceData,
 		op.Error,
 		op.DurationMs,
+		op.ActorID,
+		op.UID,
+		op.ResourceVersion,
+		op.Generation,
+		op.Verb,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to insert operation: %w", err)
@@ -107,7 +115,7 @@ func (s *SQLiteStore) QueryOperations(sessionID string) ([]Operation, error) {
 
 // QueryOperationsByRange retrieves operations within sequence range.
 func (s *SQLiteStore) QueryOperationsByRange(
-	sessionID string, 
+	sessionID string,
 	start, end int64,
 ) ([]Operation, error) {
 	err := assert.AssertStringNotEmpty(sessionID, "session ID")
@@ -122,7 +130,8 @@ func (s *SQLiteStore) QueryOperationsByRange(
 
 	query := `SELECT id, session_id, sequence_number, timestamp, 
 	         operation_type, resource_kind, namespace, name, 
-	         resource_data, error, duration_ms 
+	         resource_data, error, duration_ms, actor_id, uid,
+	         resource_version, generation, verb
 	         FROM operations 
 	         WHERE session_id = ? 
 	         AND sequence_number BETWEEN ? AND ?
@@ -140,6 +149,187 @@ func (s *SQLiteStore) QueryOperationsByRange(
 	}()
 
 	return s.scanOperations(rows)
+}
+
+// InsertReconcileSpan inserts a reconcile span record.
+func (s *SQLiteStore) InsertReconcileSpan(span *ReconcileSpan) error {
+	err := assert.AssertNotNil(s, "store")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertNotNil(s.insertSpanStmt, "span insert statement")
+	if err != nil {
+		return err
+	}
+
+	err = ValidateReconcileSpan(span)
+	if err != nil {
+		return fmt.Errorf("span validation failed: %w", err)
+	}
+
+	startTs := span.StartTime.Unix()
+	var endTs interface{}
+	if !span.EndTime.IsZero() {
+		endTs = span.EndTime.Unix()
+	}
+
+	var duration interface{}
+	if span.DurationMs > 0 {
+		duration = span.DurationMs
+	}
+
+	_, err = s.insertSpanStmt.Exec(
+		span.ID,
+		span.SessionID,
+		span.ActorID,
+		startTs,
+		endTs,
+		duration,
+		span.Kind,
+		span.Namespace,
+		span.Name,
+		span.TriggerUID,
+		span.TriggerResourceVersion,
+		span.TriggerReason,
+		span.Error,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to insert reconcile span: %w", err)
+	}
+
+	return nil
+}
+
+// EndReconcileSpan updates end time and error for a span.
+func (s *SQLiteStore) EndReconcileSpan(
+	spanID string,
+	endTime time.Time,
+	durationMs int64,
+	errMsg string,
+) error {
+	err := assert.AssertNotNil(s, "store")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertNotNil(s.endSpanStmt, "span end statement")
+	if err != nil {
+		return err
+	}
+
+	err = assert.AssertStringNotEmpty(spanID, "span id")
+	if err != nil {
+		return err
+	}
+
+	_, err = s.endSpanStmt.Exec(
+		endTime.Unix(),
+		durationMs,
+		errMsg,
+		spanID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update reconcile span: %w", err)
+	}
+
+	return nil
+}
+
+// QueryReconcileSpans retrieves spans for a session.
+func (s *SQLiteStore) QueryReconcileSpans(sessionID string) ([]ReconcileSpan, error) {
+	err := assert.AssertNotNil(s, "store")
+	if err != nil {
+		return nil, err
+	}
+
+	err = assert.AssertStringNotEmpty(sessionID, "session ID")
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := s.querySpanStmt.Query(sessionID, maxQueryResults)
+	if err != nil {
+		return nil, fmt.Errorf("span query failed: %w", err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
+
+	spans := make([]ReconcileSpan, 0, 1000)
+	count := 0
+	maxResults := 10000
+
+	for rows.Next() && count < maxResults {
+		var span ReconcileSpan
+		var startTs int64
+		var endTs sql.NullInt64
+		var duration sql.NullInt64
+		var namespace sql.NullString
+		var name sql.NullString
+		var triggerUID sql.NullString
+		var triggerRV sql.NullString
+		var triggerReason sql.NullString
+		var errMsg sql.NullString
+
+		err = rows.Scan(
+			&span.ID,
+			&span.SessionID,
+			&span.ActorID,
+			&startTs,
+			&endTs,
+			&duration,
+			&span.Kind,
+			&namespace,
+			&name,
+			&triggerUID,
+			&triggerRV,
+			&triggerReason,
+			&errMsg,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("span scan failed: %w", err)
+		}
+
+		span.StartTime = time.Unix(startTs, 0)
+		if endTs.Valid {
+			span.EndTime = time.Unix(endTs.Int64, 0)
+		}
+		if duration.Valid {
+			span.DurationMs = duration.Int64
+		}
+		if namespace.Valid {
+			span.Namespace = namespace.String
+		}
+		if name.Valid {
+			span.Name = name.String
+		}
+		if triggerUID.Valid {
+			span.TriggerUID = triggerUID.String
+		}
+		if triggerRV.Valid {
+			span.TriggerResourceVersion = triggerRV.String
+		}
+		if triggerReason.Valid {
+			span.TriggerReason = triggerReason.String
+		}
+		if errMsg.Valid {
+			span.Error = errMsg.String
+		}
+
+		spans = append(spans, span)
+		count = count + 1
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("span row iteration failed: %w", err)
+	}
+
+	return spans, nil
 }
 
 // ListSessions returns all available sessions.
@@ -205,6 +395,27 @@ func (s *SQLiteStore) Close() error {
 		}
 	}
 
+	if s.insertSpanStmt != nil {
+		err := s.insertSpanStmt.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close span insert statement: %w", err)
+		}
+	}
+
+	if s.endSpanStmt != nil {
+		err := s.endSpanStmt.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close span end statement: %w", err)
+		}
+	}
+
+	if s.querySpanStmt != nil {
+		err := s.querySpanStmt.Close()
+		if err != nil {
+			return fmt.Errorf("failed to close span query statement: %w", err)
+		}
+	}
+
 	if s.db != nil {
 		return s.db.Close()
 	}
@@ -218,8 +429,9 @@ func (s *SQLiteStore) prepareStatements() error {
 
 	insertSQL := `INSERT INTO operations (
 		session_id, sequence_number, timestamp, operation_type,
-		resource_kind, namespace, name, resource_data, error, duration_ms
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+		resource_kind, namespace, name, resource_data, error, duration_ms,
+		actor_id, uid, resource_version, generation, verb
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	s.insertStmt, err = s.db.Prepare(insertSQL)
 	if err != nil {
@@ -228,13 +440,45 @@ func (s *SQLiteStore) prepareStatements() error {
 
 	querySQL := `SELECT id, session_id, sequence_number, timestamp,
 	            operation_type, resource_kind, namespace, name,
-	            resource_data, error, duration_ms
+	            resource_data, error, duration_ms, actor_id, uid, resource_version,
+	            generation, verb
 	            FROM operations WHERE session_id = ?
 	            ORDER BY sequence_number LIMIT ?`
 
 	s.queryStmt, err = s.db.Prepare(querySQL)
 	if err != nil {
 		return fmt.Errorf("failed to prepare query statement: %w", err)
+	}
+
+	spanInsertSQL := `INSERT INTO reconcile_spans (
+		id, session_id, actor_id, start_ts, end_ts, duration_ms,
+		kind, namespace, name, trigger_uid, trigger_resource_version,
+		trigger_reason, error
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	s.insertSpanStmt, err = s.db.Prepare(spanInsertSQL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare span insert statement: %w", err)
+	}
+
+	spanEndSQL := `UPDATE reconcile_spans
+		SET end_ts = ?, duration_ms = ?, error = ?
+		WHERE id = ?`
+
+	s.endSpanStmt, err = s.db.Prepare(spanEndSQL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare span end statement: %w", err)
+	}
+
+	spanQuerySQL := `SELECT id, session_id, actor_id, start_ts, end_ts, duration_ms,
+		kind, namespace, name, trigger_uid, trigger_resource_version,
+		trigger_reason, error
+		FROM reconcile_spans WHERE session_id = ?
+		ORDER BY start_ts LIMIT ?`
+
+	s.querySpanStmt, err = s.db.Prepare(spanQuerySQL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare span query statement: %w", err)
 	}
 
 	return nil
@@ -249,6 +493,11 @@ func (s *SQLiteStore) scanOperations(rows *sql.Rows) ([]Operation, error) {
 	for rows.Next() && count < maxResults {
 		var op Operation
 		var timestamp int64
+		var actorID sql.NullString
+		var uid sql.NullString
+		var resourceVersion sql.NullString
+		var generation sql.NullInt64
+		var verb sql.NullString
 
 		err := rows.Scan(
 			&op.ID,
@@ -262,12 +511,32 @@ func (s *SQLiteStore) scanOperations(rows *sql.Rows) ([]Operation, error) {
 			&op.ResourceData,
 			&op.Error,
 			&op.DurationMs,
+			&actorID,
+			&uid,
+			&resourceVersion,
+			&generation,
+			&verb,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 
 		op.Timestamp = time.Unix(timestamp, 0)
+		if actorID.Valid {
+			op.ActorID = actorID.String
+		}
+		if uid.Valid {
+			op.UID = uid.String
+		}
+		if resourceVersion.Valid {
+			op.ResourceVersion = resourceVersion.String
+		}
+		if generation.Valid {
+			op.Generation = generation.Int64
+		}
+		if verb.Valid {
+			op.Verb = verb.String
+		}
 		operations = append(operations, op)
 		count = count + 1
 	}
@@ -280,6 +549,10 @@ func initializeSQLiteSchema(db *sql.DB) error {
 	_, err := db.Exec(Schema)
 	if err != nil {
 		return fmt.Errorf("schema creation failed: %w", err)
+	}
+	err = applySQLiteMigrations(db)
+	if err != nil {
+		return fmt.Errorf("schema migration failed: %w", err)
 	}
 	return nil
 }

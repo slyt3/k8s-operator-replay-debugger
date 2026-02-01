@@ -92,6 +92,7 @@ recordingClient, _ := recorder.NewRecordingClient(recorder.Config{
     Database:    db,
     SessionID:   "prod-issue-2024-12-08",
     MaxSequence: 1000000,
+    ActorID:     "my-operator/controller-a",
 })
 
 // Use recording client instead of regular client
@@ -239,6 +240,7 @@ func main() {
         Database:    db,
         SessionID:   "my-session",
         MaxSequence: 1000000,
+        ActorID:     "my-operator/controller-a",
     })
     
     // Use recording client in your reconciliation loop
