@@ -6,199 +6,85 @@
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![CI](https://github.com/slyt3/kubestep/actions/workflows/ci.yml/badge.svg)](https://github.com/slyt3/kubestep/actions/workflows/ci.yml)
 
-> Record, replay, and debug Kubernetes operator reconciliation loops with time-travel debugging
+KubeStep records what your operator did in Kubernetes so you can replay it and see what happened.
 
-A production-grade tool for recording, replaying, and analyzing Kubernetes operator reconciliation loops. Helps debug operator behavior by capturing all API interactions and enabling time-travel debugging.
+## What you can do
 
-## Features
+- Record Kubernetes API calls made by your controllers
+- Replay those calls step by step
+- Analyze for loops, slow calls, and errors
+- Build simple cross-controller causality chains
 
-- **Recording Mode**: Transparently record all Kubernetes API operations
-- **Replay Mode**: Step through recorded operations forward/backward
-- **Analysis Mode**: Detect loops, slow operations, and error patterns
-- **Flexible Storage**: SQLite (embedded) or MongoDB (scalable) backends
-- **Safety-Critical**: Follows JPL Power of 10 coding rules
-- **JSON Export**: Machine-readable output for CI/CD integration
-- **Time Travel**: Navigate through operation history
-
-## Architecture
-
-```
-┌─────────────────────────────────────┐
-│ 1. Recording Mode                   │
-│ - Intercept all K8s API calls       │
-│ - Record: events, state, timing     │
-│ - Store in SQLite or MongoDB        │
-└─────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────┐
-│ 2. Replay Mode                      │
-│ - Mock K8s API server               │
-│ - Feed recorded events              │
-│ - Step through reconciliation       │
-│ - Time travel (rewind/forward)      │
-└─────────────────────────────────────┘
-                 ↓
-┌─────────────────────────────────────┐
-│ 3. Analysis Mode                    │
-│ - Show state diff at each step      │
-│ - Identify infinite loops           │
-│ - Find race conditions              │
-│ - Performance bottlenecks           │
-│ - JSON output for automation        │
-└─────────────────────────────────────┘
-```
-
-## Installation
-
-### Prerequisites
-
-- Go 1.21 or later
-- GCC (for SQLite CGO)
-- Linux Mint or similar distribution
-
-### Build from Source
+## Quick start
 
 ```bash
-git clone https://github.com/your-org/kubestep
+git clone https://github.com/slyt3/kubestep
 cd kubestep
-
-# Install dependencies
 go mod download
-
-# Build the CLI
 go build -o kubestep ./cmd/kubestep
-
-# Run tests
-go test ./...
 ```
 
-## Quick Start
-
-### 1. Record Operations (Library Usage)
-
-Integrate the recording client into your operator:
-
-```go
-package main
-
-import (
-    "context"
-    "github.com/slyt3/kubestep/pkg/recorder"
-    "github.com/slyt3/kubestep/pkg/storage"
-    "k8s.io/client-go/kubernetes"
-)
-
-func main() {
-    // Create your normal Kubernetes client
-    k8sClient := kubernetes.NewForConfigOrDie(config)
-    
-    // Open recording database
-    db, err := storage.NewDatabase("recordings.db", 1000000)
-    if err != nil {
-        panic(err)
-    }
-    defer db.Close()
-    
-    // Wrap client with recorder
-    recordingClient, err := recorder.NewRecordingClient(recorder.Config{
-        Client:      k8sClient,
-        Database:    db,
-        SessionID:   "prod-deployment-001",
-        MaxSequence: 1000000,
-        ActorID:     "my-operator/controller-a",
-    })
-    if err != nil {
-        panic(err)
-    }
-    
-    // Use recording client for operations
-    pod, err := recordingClient.RecordGet(
-        context.Background(),
-        "Pod",
-        "default",
-        "my-pod",
-        metav1.GetOptions{},
-    )
-}
-```
-
-### 2. Replay Operations
+Create a sample database and try the CLI:
 
 ```bash
-# List available sessions
-./kubestep sessions -d recordings.db
-
-# Replay a session automatically
-./kubestep replay prod-deployment-001 -d recordings.db
-
-# Interactive replay with step controls
-./kubestep replay prod-deployment-001 -d recordings.db -i
-
-# Interactive commands:
-#   n - step forward
-#   b - step backward
-#   r - reset to beginning
-#   s - show statistics
-#   q - quit
+go run examples/create_sample.go
+./kubestep sessions -d sample_recordings.db
+./kubestep replay sample-session-001 -d sample_recordings.db
+./kubestep analyze sample-session-002 -d sample_recordings.db
 ```
 
-### 3. Analyze Operations
+## Causality (A -> B -> C)
 
-**SQLite Storage (default):**
-```bash
-# Detect loops, slow operations, and errors
-./kubestep analyze prod-deployment-001 -d recordings.db
-
-# Only detect loops
-./kubestep analyze prod-deployment-001 -d recordings.db --loops --no-slow --no-errors
-
-# JSON output for automation and CI/CD pipelines
-./kubestep analyze prod-deployment-001 -d recordings.db --format json > report.json
-```
-
-**MongoDB Storage:**
-```bash
-# Analyze with MongoDB backend
-./kubestep analyze prod-deployment-001 \
-    --storage mongodb \
-    --mongo-uri "mongodb://localhost:27017" \
-    --mongo-db "kubestep"
-
-# MongoDB with custom settings
-./kubestep analyze prod-deployment-001 \
-    --storage mongodb \
-    --mongo-uri "mongodb://user:pass@cluster.mongodb.net" \
-    --mongo-db "production_debugging" \
-    --threshold 2000 \
-    --format json
-```
-
-## Causality Graph (A→B→C)
-
-Infer cross-controller chains like:
-`controller A WRITE -> controller B RECONCILE -> controller B WRITE -> controller C RECONCILE`.
-
-**Text output:**
 ```bash
 ./kubestep analyze causality --session prod-deployment-001 -d recordings.db
 ```
 
-**JSON output (graph nodes/edges):**
+JSON graph output:
+
 ```bash
-./kubestep analyze causality --session prod-deployment-001 \
-  -d recordings.db \
-  --format json \
-  --max-depth 6
+./kubestep analyze causality --session prod-deployment-001 -d recordings.db --format json
 ```
 
-**Optional window + payloads:**
-```bash
-./kubestep analyze causality --session prod-deployment-001 \
-  -d recordings.db \
-  --window "2024-12-08T10:00:00Z,2024-12-08T10:10:00Z" \
-  --format json \
-  --include-payloads
+## Architecture
+
 ```
+┌───────────────────────────────┐        ┌──────────────────────┐
+│  Your Operator / Controllers  │        │   Replay + Analysis  │
+│  (client-go calls + reconcile)│        │  (CLI: kubestep)      │
+└───────────────┬───────────────┘        └──────────┬───────────┘
+                │                                   │
+                │ record (operations + spans)       │ read + analyze
+                ▼                                   ▼
+       ┌──────────────────────┐           ┌──────────────────────┐
+       │   Recorder Wrapper   │           │   Analyzer / Graph   │
+       │  (lightweight layer) │           │  loops + causality   │
+       └──────────┬───────────┘           └──────────┬───────────┘
+                  │                                   │
+                  ▼                                   ▼
+           ┌───────────────────────────────────────────────────┐
+           │          Storage (SQLite or MongoDB)               │
+           │  operations: who/what/when/object/version          │
+           │  spans: reconcile triggers + writes                │
+           └───────────────────────────────────────────────────┘
+```
+
+## Use in your operator
+
+```go
+db, _ := storage.NewDatabase("recordings.db", 1000000)
+client, _ := recorder.NewRecordingClient(recorder.Config{
+    Client:    k8sClient,
+    Database:  db,
+    SessionID: "prod-deployment-001",
+    ActorID:   "my-operator/controller-a",
+})
+_ = client
+```
+
+## Docs
+
+- `GETTING_STARTED.md`
+- `ARCHITECTURE.md`
 
 ## Database Schema
 
