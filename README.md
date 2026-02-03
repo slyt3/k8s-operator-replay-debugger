@@ -125,72 +125,6 @@ CREATE TABLE reconcile_spans (
 );
 ```
 
-## Safety-Critical Compliance
-
-This project follows the JPL Power of 10 rules for safety-critical code:
-
-1. **No recursion** - All algorithms use iteration
-2. **Bounded loops** - All loops have explicit upper bounds
-3. **No dynamic allocation after init** - Memory allocated during setup only
-4. **Functions under 60 lines** - Each function is a logical unit
-5. **Minimum 2 assertions per function** - Defensive programming
-6. **Minimal scope** - Variables declared at smallest scope
-7. **Return values checked** - All errors propagated
-8. **Limited preprocessor** - No token pasting or recursion
-9. **Single-level pointers** - No multiple indirection
-10. **Zero warnings** - Compiles cleanly with all warnings enabled
-
-## Testing
-
-```bash
-# Run all tests
-go test ./...
-
-# Run with verbose output
-go test -v ./...
-
-# Run specific package tests
-go test -v ./pkg/storage
-go test -v ./pkg/replay
-go test -v ./pkg/analysis
-
-# Run with race detector
-go test -race ./...
-
-# Generate coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
-
-## Project Structure
-
-```
-kubestep/
-├── cmd/
-│   └── kubestep/
-│       ├── main.go           # CLI entry point
-│       └── commands/         # Subcommands
-│           ├── replay.go     # Replay operations
-│           ├── analyze.go    # Analysis tools
-│           └── record.go     # Recording info
-├── pkg/
-│   ├── recorder/             # Recording client
-│   │   └── client.go
-│   ├── replay/               # Replay engine
-│   │   └── engine.go
-│   ├── storage/              # Database layer
-│   │   ├── types.go
-│   │   └── database.go
-│   └── analysis/             # Analysis tools
-│       └── analyzer.go
-├── internal/
-│   └── assert/               # Assertion utilities
-│       └── assert.go
-├── go.mod
-├── go.sum
-├── README.md
-└── ARCHITECTURE.md
-```
 
 ## Configuration
 
@@ -291,7 +225,7 @@ Example JSON output:
 }
 ```
 
-## Limitations
+## Limitations (working on this one xd)
 
 - SQLite-based storage (single file, not distributed)
 - Maximum 1M operations per session by default
@@ -299,16 +233,6 @@ Example JSON output:
 - Resource data limited to 1MB per operation
 - Requires CGO for SQLite (not pure Go)
 
-## Contributing
-
-Contributions must follow the safety-critical coding standards:
-
-1. All functions under 60 lines
-2. Minimum 2 assertions per function
-3. All loops explicitly bounded
-4. No recursion
-5. Zero compiler warnings
-6. Tests for all new functionality
 
 ## License
 
