@@ -46,6 +46,7 @@ Helps debug operator behavior by capturing all API interactions.`,
 	rootCmd.AddCommand(commands.NewReplayCommand())
 	rootCmd.AddCommand(commands.NewAnalyzeCommand())
 	rootCmd.AddCommand(commands.NewSessionsCommand())
+	rootCmd.AddCommand(commands.NewVerifyCommand())
 
 	return rootCmd
 }

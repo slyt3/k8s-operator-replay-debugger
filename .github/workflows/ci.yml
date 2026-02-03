@@ -33,6 +33,26 @@ jobs:
     
     - name: Test
       run: go test -v ./pkg/... ./internal/...
-    
+
+    - name: Go vet
+      run: go vet ./...
+
+    - name: Go fmt check
+      run: |
+        files=$(gofmt -l .)
+        if [ -n "$files" ]; then
+          echo "gofmt needed on:"
+          echo "$files"
+          exit 1
+        fi
+
+    - name: Coverage
+      run: |
+        go test -coverprofile=coverage.out ./pkg/... ./internal/... ./cmd/...
+        go tool cover -func=coverage.out
+        total=$(go tool cover -func=coverage.out | awk '/total:/ {print substr($3, 1, length($3)-1)}')
+        min=50.0
+        awk -v t="$total" -v m="$min" 'BEGIN { if (t+0 < m+0) { printf("coverage %.2f%% is below %.2f%%\n", t, m); exit 1 } }'
+
     - name: Verify binary
       run: ./kubestep --version
