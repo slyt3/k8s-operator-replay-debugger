@@ -3,10 +3,10 @@ package commands
 import (
 	"fmt"
 
+	"github.com/schollz/progressbar/v3"
 	"github.com/slyt3/kubestep/internal/assert"
 	"github.com/slyt3/kubestep/pkg/replay"
 	"github.com/slyt3/kubestep/pkg/storage"
-	"github.com/schollz/progressbar/v3"
 	"github.com/spf13/cobra"
 )
 
